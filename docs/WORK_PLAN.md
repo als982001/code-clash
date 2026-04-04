@@ -4,12 +4,12 @@
 
 - [x] 청사진 작성
 - [x] 기술 스택 확정 문서화
-- [ ] Next.js 프로젝트 생성 (App Router, TypeScript, Tailwind v4)
-- [ ] shadcn/ui 초기화
-- [ ] 프로젝트 폴더 구조 생성
-- [ ] Supabase 클라이언트 설정 (패키지 설치 + 환경변수 템플릿)
-- [ ] ESLint 설정
-- [ ] 기본 레이아웃 컴포넌트 (Header, Layout)
+- [x] Next.js 프로젝트 생성 (App Router, TypeScript, Tailwind v4)
+- [x] shadcn/ui 초기화
+- [x] 프로젝트 폴더 구조 생성
+- [x] Supabase 클라이언트 설정 (패키지 설치 + 환경변수 템플릿)
+- [x] ESLint 설정
+- [x] 기본 레이아웃 컴포넌트 (QueryProvider, Layout)
 
 ## Step 1: 핵심 대전 루프 (Phase 1)
 
