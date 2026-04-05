@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+
+import CodeEditor from "@/app/features/editor/components/CodeEditor";
 
 interface IEditorPanelProps {
   onRun: ({ code, language }: { code: string; language: string }) => void;
   onSubmit: ({ code, language }: { code: string; language: string }) => void;
   isRunning: boolean;
+  isSubmitting: boolean;
 }
 
 const LANGUAGES = [
@@ -17,9 +20,24 @@ export default function EditorPanel({
   onRun,
   onSubmit,
   isRunning,
+  isSubmitting,
 }: IEditorPanelProps) {
-  const [code, setCode] = useState("");
+  const [codeByLanguage, setCodeByLanguage] = useState<Record<string, string>>({
+    javascript: "",
+    python: "",
+  });
   const [language, setLanguage] = useState("javascript");
+
+  const code = codeByLanguage[language] ?? "";
+
+  const handleCodeChange = useCallback(
+    ({ value }: { value: string }) => {
+      setCodeByLanguage((prev) => {
+        return { ...prev, [language]: value };
+      });
+    },
+    [language],
+  );
 
   const handleRun = () => {
     onRun({ code, language });
@@ -51,7 +69,7 @@ export default function EditorPanel({
         <div className="flex gap-2">
           <button
             onClick={handleRun}
-            disabled={isRunning || !code.trim()}
+            disabled={isRunning || isSubmitting || !code.trim()}
             className="rounded bg-green-600 px-4 py-1 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
           >
             {isRunning ? "실행 중..." : "코드 실행"}
@@ -59,24 +77,19 @@ export default function EditorPanel({
 
           <button
             onClick={handleSubmit}
-            disabled={isRunning || !code.trim()}
+            disabled={isRunning || isSubmitting || !code.trim()}
             className="rounded bg-blue-600 px-4 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            최종 제출
+            {isSubmitting ? "제출 중..." : "최종 제출"}
           </button>
         </div>
       </div>
 
-      <div className="flex-1 bg-[#1e1e1e]">
-        {/* Monaco Editor 자리 — 1-2-2에서 통합 */}
-        <textarea
+      <div className="flex-1">
+        <CodeEditor
+          language={language}
           value={code}
-          onChange={(e) => {
-            setCode(e.target.value);
-          }}
-          placeholder="// 코드를 작성하세요..."
-          className="h-full w-full resize-none bg-[#1e1e1e] p-4 font-mono text-sm text-white outline-none"
-          spellCheck={false}
+          onChange={handleCodeChange}
         />
       </div>
     </div>

@@ -17,6 +17,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
   const [problem, setProblem] = useState<IProblem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { client } = useMemo(() => {
     return createClient();
   }, []);
@@ -70,8 +71,10 @@ export default function PlayPage({ params }: IPlayPageProps) {
     code: string;
     language: string;
   }) => {
+    setIsSubmitting(true);
     // 최종 제출은 1-3-5에서 구현
     console.log("최종 제출:", { code, language });
+    setIsSubmitting(false);
   };
 
   return (
@@ -85,6 +88,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
           onRun={handleRun}
           onSubmit={handleSubmit}
           isRunning={isRunning}
+          isSubmitting={isSubmitting}
         />
       </div>
     </div>
