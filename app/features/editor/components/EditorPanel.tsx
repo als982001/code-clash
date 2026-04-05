@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import CodeEditor from "@/app/features/editor/components/CodeEditor";
 import ResultPanel from "@/app/features/editor/components/ResultPanel";
@@ -32,7 +32,39 @@ export default function EditorPanel({
   });
   const [language, setLanguage] = useState("javascript");
 
+  const [cooldown, setCooldown] = useState(0);
+  const cooldownRef = useRef<NodeJS.Timeout | null>(null);
+
   const code = codeByLanguage[language] ?? "";
+  const isOnCooldown = cooldown > 0;
+
+  useEffect(() => {
+    return () => {
+      if (cooldownRef.current) {
+        clearInterval(cooldownRef.current);
+      }
+    };
+  }, []);
+
+  const startCooldown = () => {
+    if (cooldownRef.current) {
+      clearInterval(cooldownRef.current);
+    }
+
+    setCooldown(3);
+
+    cooldownRef.current = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(cooldownRef.current!);
+          cooldownRef.current = null;
+          return 0;
+        }
+
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   const handleCodeChange = useCallback(
     ({ value }: { value: string }) => {
@@ -45,6 +77,7 @@ export default function EditorPanel({
 
   const handleRun = () => {
     onRun({ code, language });
+    startCooldown();
   };
 
   const handleSubmit = () => {
@@ -73,10 +106,14 @@ export default function EditorPanel({
         <div className="flex gap-2">
           <button
             onClick={handleRun}
-            disabled={isRunning || isSubmitting || !code.trim()}
+            disabled={isRunning || isSubmitting || isOnCooldown || !code.trim()}
             className="rounded bg-green-600 px-4 py-1 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
           >
-            {isRunning ? "실행 중..." : "코드 실행"}
+            {isRunning
+              ? "실행 중..."
+              : isOnCooldown
+                ? `대기 (${cooldown}s)`
+                : "코드 실행"}
           </button>
 
           <button
