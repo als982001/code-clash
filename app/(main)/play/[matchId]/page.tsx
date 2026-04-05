@@ -201,7 +201,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
     }
   };
 
-  const handleSubmit = ({
+  const handleSubmit = async ({
     code,
     language,
   }: {
@@ -209,9 +209,31 @@ export default function PlayPage({ params }: IPlayPageProps) {
     language: string;
   }) => {
     setIsSubmitting(true);
-    // 최종 제출은 1-3-5에서 구현
-    console.log("최종 제출:", { code, language });
-    setIsSubmitting(false);
+
+    try {
+      const response = await fetch(`/api/match/${matchId}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, code, language }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+
+        console.error(error);
+        return;
+      }
+
+      // 상대방에게 제출 완료 알림
+      broadcast({
+        event: "OPPONENT_SUBMITTED",
+        payload: { userId },
+      });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const gameStarted = isReady && opponentReady;
