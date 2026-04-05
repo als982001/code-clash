@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import type {
@@ -27,7 +27,7 @@ interface IMatchRealtimeCallbacks {
  * Supabase Realtime Broadcast 채널을 구성하고, 이벤트 수신/송신 기능을 제공한다.
  * @param matchId 대전 방 ID
  * @param callbacks 이벤트별 콜백 함수
- * @return broadcast 함수 (이벤트 송신용)
+ * @return broadcast 함수 (이벤트 송신용), isSubscribed (채널 구독 완료 여부)
  */
 export function useMatchRealtime({
   matchId,
@@ -38,12 +38,15 @@ export function useMatchRealtime({
 }) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const callbacksRef = useRef(callbacks);
+  const [isSubscribed, setIsSubscribed] = useState(false);
 
   useEffect(() => {
     callbacksRef.current = callbacks;
   });
 
   useEffect(() => {
+    setIsSubscribed(false);
+
     const { client } = createClient();
 
     const channel = client.channel(`match:${matchId}`, {
@@ -71,13 +74,18 @@ export function useMatchRealtime({
           payload: payload as IMatchFinishedPayload,
         });
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setIsSubscribed(true);
+        }
+      });
 
     channelRef.current = channel;
 
     return () => {
       client.removeChannel(channel);
       channelRef.current = null;
+      setIsSubscribed(false);
     };
   }, [matchId]);
 
@@ -102,5 +110,5 @@ export function useMatchRealtime({
     [],
   );
 
-  return { broadcast };
+  return { broadcast, isSubscribed };
 }

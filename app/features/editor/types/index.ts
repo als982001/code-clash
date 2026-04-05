@@ -27,3 +27,8 @@ export interface IJudgeResponse {
   totalPassed: number;
   totalCases: number;
 }
+
+export interface IOpponentProgress {
+  passedCount: number;
+  totalCount: number;
+}
