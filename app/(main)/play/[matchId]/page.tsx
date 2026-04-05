@@ -114,12 +114,13 @@ export default function PlayPage({ params }: IPlayPageProps) {
         <ProblemPanel problem={problem} isLoading={isLoading} />
       </div>
 
-      <div className="w-1/2">
+      <div className="h-screen w-1/2">
         <EditorPanel
           onRun={handleRun}
           onSubmit={handleSubmit}
           isRunning={isRunning}
           isSubmitting={isSubmitting}
+          judgeResult={judgeResult}
         />
       </div>
     </div>

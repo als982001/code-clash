@@ -3,12 +3,15 @@
 import { useCallback, useState } from "react";
 
 import CodeEditor from "@/app/features/editor/components/CodeEditor";
+import ResultPanel from "@/app/features/editor/components/ResultPanel";
+import type { IJudgeResponse } from "@/app/features/editor/types";
 
 interface IEditorPanelProps {
   onRun: ({ code, language }: { code: string; language: string }) => void;
   onSubmit: ({ code, language }: { code: string; language: string }) => void;
   isRunning: boolean;
   isSubmitting: boolean;
+  judgeResult: IJudgeResponse | null;
 }
 
 const LANGUAGES = [
@@ -21,6 +24,7 @@ export default function EditorPanel({
   onSubmit,
   isRunning,
   isSubmitting,
+  judgeResult,
 }: IEditorPanelProps) {
   const [codeByLanguage, setCodeByLanguage] = useState<Record<string, string>>({
     javascript: "",
@@ -85,12 +89,16 @@ export default function EditorPanel({
         </div>
       </div>
 
-      <div className="flex-1">
+      <div className="min-h-0 flex-1">
         <CodeEditor
           language={language}
           value={code}
           onChange={handleCodeChange}
         />
+      </div>
+
+      <div className="max-h-[40%] overflow-y-auto border-t">
+        <ResultPanel result={judgeResult} isRunning={isRunning} />
       </div>
     </div>
   );
