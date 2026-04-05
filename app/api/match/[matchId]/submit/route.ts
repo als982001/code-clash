@@ -116,6 +116,60 @@ function calculateScore({
   return { score: Math.round(accuracyScore + timeBonus) };
 }
 
+interface ISubmissionRow {
+  user_id: string;
+  submitted_at: string;
+}
+
+interface IParticipantRow {
+  user_id: string;
+  score: number | null;
+}
+
+/**
+ * 양쪽 제출이 모두 완료되었을 때 승자를 결정한다.
+ * 판정 기준: 점수 높은 유저 → 동점 시 submitted_at이 빠른 유저
+ * @param participants 참가자 목록 (score 포함)
+ * @param submissions 제출 목록 (submitted_at 포함)
+ * @return winnerId (무승부 가능성은 submitted_at으로 해소)
+ */
+function determineWinner({
+  participants,
+  submissions,
+}: {
+  participants: IParticipantRow[];
+  submissions: ISubmissionRow[];
+}): { winnerId: string | null } {
+  if (participants.length < 2) {
+    return { winnerId: null };
+  }
+
+  const [a, b] = participants;
+  const scoreA = a.score ?? 0;
+  const scoreB = b.score ?? 0;
+
+  if (scoreA !== scoreB) {
+    return { winnerId: scoreA > scoreB ? a.user_id : b.user_id };
+  }
+
+  // 동점: submitted_at이 빠른 유저 승리
+  const subA = submissions.find((s) => {
+    return s.user_id === a.user_id;
+  });
+  const subB = submissions.find((s) => {
+    return s.user_id === b.user_id;
+  });
+
+  if (!subA || !subB) {
+    return { winnerId: null };
+  }
+
+  const timeA = new Date(subA.submitted_at).getTime();
+  const timeB = new Date(subB.submitted_at).getTime();
+
+  return { winnerId: timeA <= timeB ? a.user_id : b.user_id };
+}
+
 /**
  * 최종 코드를 제출하고, 전체 테스트 케이스(히든 포함)로 채점하여 점수를 산출한다.
  * - 멱등성: matchId + userId 기준 첫 번째 제출만 유효
@@ -285,6 +339,70 @@ export async function POST(
 
   if (scoreError) {
     console.error(scoreError);
+
+    return NextResponse.json(
+      { error: "점수 저장에 실패했습니다." },
+      { status: 500 },
+    );
+  }
+
+  // 양쪽 제출 모두 완료됐는지 확인 → 승패 판정
+  const { data: allSubmissions } = await client
+    .from("submissions")
+    .select("user_id, submitted_at")
+    .eq("match_id", matchId);
+
+  const { data: allParticipants } = await client
+    .from("match_participants")
+    .select("user_id, score")
+    .eq("match_id", matchId);
+
+  if (
+    allSubmissions &&
+    allParticipants &&
+    allSubmissions.length === 2 &&
+    allParticipants.length === 2
+  ) {
+    const { winnerId } = determineWinner({
+      participants: allParticipants,
+      submissions: allSubmissions,
+    });
+
+    // Race condition 방어: ongoing인 경우에만 finished로 변경
+    const { data: finishedMatch } = await client
+      .from("matches")
+      .update({
+        status: "finished",
+        winner_id: winnerId,
+        end_time: new Date().toISOString(),
+      })
+      .eq("id", matchId)
+      .eq("status", "ongoing")
+      .select("id");
+
+    // 이미 다른 요청이 판정을 완료했으면 브로드캐스트 스킵
+    if (finishedMatch && finishedMatch.length > 0) {
+      const scores: Record<string, number> = {};
+
+      allParticipants.forEach((p) => {
+        scores[p.user_id] = p.score ?? 0;
+      });
+
+      // MATCH_FINISHED 브로드캐스트 (서버 → 클라이언트)
+      const channel = client.channel(`match:${matchId}`);
+
+      await channel.send({
+        type: "broadcast",
+        event: "MATCH_FINISHED",
+        payload: {
+          winnerId,
+          scores,
+          mmrChange: {},
+        },
+      });
+
+      await client.removeChannel(channel);
+    }
   }
 
   return NextResponse.json({

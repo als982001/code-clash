@@ -13,6 +13,7 @@ import type {
   IPlayerReadyPayload,
   IProgressUpdatePayload,
   IOpponentSubmittedPayload,
+  IMatchFinishedPayload,
 } from "@/app/features/match/types";
 import ProblemPanel from "@/app/features/problem/components/ProblemPanel";
 import type { IProblem } from "@/app/features/problem/types";
@@ -62,6 +63,9 @@ export default function PlayPage({ params }: IPlayPageProps) {
   const [opponentProgress, setOpponentProgress] =
     useState<IOpponentProgress | null>(null);
   const [opponentSubmitted, setOpponentSubmitted] = useState(false);
+  const [matchResult, setMatchResult] = useState<IMatchFinishedPayload | null>(
+    null,
+  );
 
   const { client } = useMemo(() => {
     return createClient();
@@ -97,12 +101,20 @@ export default function PlayPage({ params }: IPlayPageProps) {
     [userId],
   );
 
+  const handleMatchFinished = useCallback(
+    ({ payload }: { payload: IMatchFinishedPayload }) => {
+      setMatchResult(payload);
+    },
+    [],
+  );
+
   const { broadcast, isSubscribed } = useMatchRealtime({
     matchId,
     callbacks: {
       onPlayerReady: handlePlayerReady,
       onProgressUpdate: handleProgressUpdate,
       onOpponentSubmitted: handleOpponentSubmitted,
+      onMatchFinished: handleMatchFinished,
     },
   });
 
@@ -237,6 +249,23 @@ export default function PlayPage({ params }: IPlayPageProps) {
   };
 
   const gameStarted = isReady && opponentReady;
+  const isMatchFinished = matchResult !== null;
+
+  const resultMessage = (() => {
+    if (!matchResult) {
+      return { text: "", color: "" };
+    }
+
+    if (matchResult.winnerId === userId) {
+      return { text: "승리!", color: "text-green-400" };
+    }
+
+    if (matchResult.winnerId === null) {
+      return { text: "무승부", color: "text-yellow-400" };
+    }
+
+    return { text: "패배", color: "text-red-400" };
+  })();
 
   return (
     <div className="flex h-screen">
@@ -245,7 +274,31 @@ export default function PlayPage({ params }: IPlayPageProps) {
       </div>
 
       <div className="h-screen w-1/2">
-        {!gameStarted && problem && (
+        {isMatchFinished && (
+          <div className="flex flex-col items-center gap-2 border-b bg-gray-900/50 px-4 py-4">
+            <span className={`text-2xl font-bold ${resultMessage.color}`}>
+              {resultMessage.text}
+            </span>
+            <div className="flex gap-4 text-sm">
+              <span className="text-muted-foreground">
+                내 점수: {matchResult.scores[userId] ?? 0}
+              </span>
+              <span className="text-muted-foreground">|</span>
+              <span className="text-muted-foreground">
+                상대 점수:{" "}
+                {Object.entries(matchResult.scores)
+                  .filter(([id]) => {
+                    return id !== userId;
+                  })
+                  .map(([, s]) => {
+                    return s;
+                  })[0] ?? 0}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {!isMatchFinished && !gameStarted && problem && (
           <div className="bg-muted/50 flex items-center justify-center gap-3 border-b px-4 py-3 text-sm">
             <span className={isReady ? "text-green-400" : "text-yellow-400"}>
               {isReady ? "● 나: 준비 완료" : "○ 나: 준비 중..."}
@@ -259,7 +312,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
           </div>
         )}
 
-        {opponentSubmitted && (
+        {!isMatchFinished && opponentSubmitted && (
           <div className="flex items-center justify-center border-b bg-orange-500/10 px-4 py-2 text-sm text-orange-400">
             상대방이 최종 제출을 완료했습니다!
           </div>
