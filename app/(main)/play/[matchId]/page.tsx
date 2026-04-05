@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { use } from "react";
 
 import EditorPanel from "@/app/features/editor/components/EditorPanel";
+import type { IJudgeResponse } from "@/app/features/editor/types";
 import ProblemPanel from "@/app/features/problem/components/ProblemPanel";
 import type { IProblem } from "@/app/features/problem/types";
 import { createClient } from "@/app/shared/lib/supabase/client";
@@ -18,6 +19,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [judgeResult, setJudgeResult] = useState<IJudgeResponse | null>(null);
   const { client } = useMemo(() => {
     return createClient();
   }, []);
@@ -51,17 +53,46 @@ export default function PlayPage({ params }: IPlayPageProps) {
     fetchProblem();
   }, [matchId, client]);
 
-  const handleRun = ({
+  const handleRun = async ({
     code,
     language,
   }: {
     code: string;
     language: string;
   }) => {
+    if (!problem?.testCases?.length) {
+      return;
+    }
+
     setIsRunning(true);
-    // Judge0 연동은 1-2-3에서 구현
-    console.log("코드 실행:", { code, language });
-    setIsRunning(false);
+    setJudgeResult(null);
+
+    try {
+      const response = await fetch("/api/judge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          language,
+          testCases: problem.testCases,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+
+        console.error(error);
+        return;
+      }
+
+      const { data } = await response.json();
+
+      setJudgeResult(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsRunning(false);
+    }
   };
 
   const handleSubmit = ({
