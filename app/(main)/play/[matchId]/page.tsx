@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { use } from "react";
 
 import EditorPanel from "@/app/features/editor/components/EditorPanel";
@@ -8,7 +8,9 @@ import type {
   IJudgeResponse,
   IOpponentProgress,
 } from "@/app/features/editor/types";
+import MatchTimer from "@/app/features/match/components/MatchTimer";
 import { useMatchRealtime } from "@/app/features/match/hooks/useMatchRealtime";
+import { useMatchTimer } from "@/app/features/match/hooks/useMatchTimer";
 import type {
   IPlayerReadyPayload,
   IProgressUpdatePayload,
@@ -18,6 +20,9 @@ import type {
 import ProblemPanel from "@/app/features/problem/components/ProblemPanel";
 import type { IProblem } from "@/app/features/problem/types";
 import { createClient } from "@/app/shared/lib/supabase/client";
+
+/** 대전 제한 시간 (초) - 15분 */
+const MATCH_DURATION_SECONDS = 900;
 
 interface IPlayPageProps {
   params: Promise<{ matchId: string }>;
@@ -66,6 +71,13 @@ export default function PlayPage({ params }: IPlayPageProps) {
   const [matchResult, setMatchResult] = useState<IMatchFinishedPayload | null>(
     null,
   );
+  const [startTime, setStartTime] = useState<string | null>(null);
+
+  const hasAutoSubmittedRef = useRef(false);
+  const codeRef = useRef<{ code: string; language: string }>({
+    code: "",
+    language: "javascript",
+  });
 
   const { client } = useMemo(() => {
     return createClient();
@@ -108,6 +120,13 @@ export default function PlayPage({ params }: IPlayPageProps) {
     [],
   );
 
+  const handleCodeChange = useCallback(
+    ({ code, language }: { code: string; language: string }) => {
+      codeRef.current = { code, language };
+    },
+    [],
+  );
+
   const { broadcast, isSubscribed } = useMatchRealtime({
     matchId,
     callbacks: {
@@ -122,7 +141,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
     const fetchProblem = async () => {
       const { data: match } = await client
         .from("matches")
-        .select("problem_id")
+        .select("problem_id, start_time")
         .eq("id", matchId)
         .single();
 
@@ -130,6 +149,8 @@ export default function PlayPage({ params }: IPlayPageProps) {
         setIsLoading(false);
         return;
       }
+
+      setStartTime(match.start_time ?? null);
 
       const response = await fetch(`/api/problems/${match.problem_id}`);
 
@@ -213,43 +234,64 @@ export default function PlayPage({ params }: IPlayPageProps) {
     }
   };
 
-  const handleSubmit = async ({
-    code,
-    language,
-  }: {
-    code: string;
-    language: string;
-  }) => {
-    setIsSubmitting(true);
+  const handleSubmit = useCallback(
+    async ({ code, language }: { code: string; language: string }) => {
+      setIsSubmitting(true);
 
-    try {
-      const response = await fetch(`/api/match/${matchId}/submit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, code, language }),
-      });
+      try {
+        const response = await fetch(`/api/match/${matchId}/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, code, language }),
+        });
 
-      if (!response.ok) {
-        const error = await response.json();
+        if (!response.ok) {
+          const error = await response.json();
 
+          console.error(error);
+          return;
+        }
+
+        // 상대방에게 제출 완료 알림
+        broadcast({
+          event: "OPPONENT_SUBMITTED",
+          payload: { userId },
+        });
+      } catch (error) {
         console.error(error);
-        return;
+      } finally {
+        setIsSubmitting(false);
       }
-
-      // 상대방에게 제출 완료 알림
-      broadcast({
-        event: "OPPONENT_SUBMITTED",
-        payload: { userId },
-      });
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+    [matchId, userId, broadcast],
+  );
 
   const gameStarted = isReady && opponentReady;
   const isMatchFinished = matchResult !== null;
+
+  const handleTimerExpire = useCallback(() => {
+    if (hasAutoSubmittedRef.current) {
+      return;
+    }
+
+    if (isMatchFinished) {
+      return;
+    }
+
+    hasAutoSubmittedRef.current = true;
+
+    const { code, language } = codeRef.current;
+    const fallbackCode = code.trim().length > 0 ? code : "// time out";
+
+    handleSubmit({ code: fallbackCode, language });
+  }, [handleSubmit, isMatchFinished]);
+
+  const { remainingSeconds, isExpired, isWarning } = useMatchTimer({
+    startTime,
+    durationSeconds: MATCH_DURATION_SECONDS,
+    enabled: gameStarted && !isMatchFinished,
+    onExpire: handleTimerExpire,
+  });
 
   const resultMessage = (() => {
     if (!matchResult) {
@@ -318,6 +360,14 @@ export default function PlayPage({ params }: IPlayPageProps) {
           </div>
         )}
 
+        {gameStarted && !isMatchFinished && startTime && (
+          <MatchTimer
+            remainingSeconds={remainingSeconds}
+            isExpired={isExpired}
+            isWarning={isWarning}
+          />
+        )}
+
         <EditorPanel
           onRun={handleRun}
           onSubmit={handleSubmit}
@@ -325,6 +375,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
           isSubmitting={isSubmitting}
           judgeResult={judgeResult}
           opponentProgress={opponentProgress}
+          onCodeChange={handleCodeChange}
         />
       </div>
     </div>

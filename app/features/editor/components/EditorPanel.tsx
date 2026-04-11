@@ -16,6 +16,13 @@ interface IEditorPanelProps {
   isSubmitting: boolean;
   judgeResult: IJudgeResponse | null;
   opponentProgress: IOpponentProgress | null;
+  onCodeChange?: ({
+    code,
+    language,
+  }: {
+    code: string;
+    language: string;
+  }) => void;
 }
 
 const LANGUAGES = [
@@ -30,6 +37,7 @@ export default function EditorPanel({
   isSubmitting,
   judgeResult,
   opponentProgress,
+  onCodeChange,
 }: IEditorPanelProps) {
   const [codeByLanguage, setCodeByLanguage] = useState<Record<string, string>>({
     javascript: "",
@@ -76,8 +84,9 @@ export default function EditorPanel({
       setCodeByLanguage((prev) => {
         return { ...prev, [language]: value };
       });
+      onCodeChange?.({ code: value, language });
     },
-    [language],
+    [language, onCodeChange],
   );
 
   const handleRun = () => {
@@ -95,7 +104,12 @@ export default function EditorPanel({
         <select
           value={language}
           onChange={(e) => {
-            setLanguage(e.target.value);
+            const next = e.target.value;
+            setLanguage(next);
+            onCodeChange?.({
+              code: codeByLanguage[next] ?? "",
+              language: next,
+            });
           }}
           className="bg-muted rounded px-3 py-1 text-sm"
         >
