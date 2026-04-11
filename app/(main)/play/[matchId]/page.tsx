@@ -8,7 +8,7 @@ import type {
   IJudgeResponse,
   IOpponentProgress,
 } from "@/app/features/editor/types";
-import MatchTimer from "@/app/features/match/components/MatchTimer";
+import MatchStatusBar from "@/app/features/match/components/MatchStatusBar";
 import { useMatchRealtime } from "@/app/features/match/hooks/useMatchRealtime";
 import { useMatchTimer } from "@/app/features/match/hooks/useMatchTimer";
 import type {
@@ -65,6 +65,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
   });
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
+  const [myProgress, setMyProgress] = useState<IOpponentProgress | null>(null);
   const [opponentProgress, setOpponentProgress] =
     useState<IOpponentProgress | null>(null);
   const [opponentSubmitted, setOpponentSubmitted] = useState(false);
@@ -218,6 +219,11 @@ export default function PlayPage({ params }: IPlayPageProps) {
 
       setJudgeResult(data);
 
+      setMyProgress({
+        passedCount: data.totalPassed,
+        totalCount: data.totalCases,
+      });
+
       // 코드 실행 결과를 상대방에게 브로드캐스트
       broadcast({
         event: "PROGRESS_UPDATE",
@@ -360,11 +366,14 @@ export default function PlayPage({ params }: IPlayPageProps) {
           </div>
         )}
 
-        {gameStarted && !isMatchFinished && startTime && (
-          <MatchTimer
+        {gameStarted && !isMatchFinished && (
+          <MatchStatusBar
             remainingSeconds={remainingSeconds}
             isExpired={isExpired}
             isWarning={isWarning}
+            hasStartTime={startTime !== null}
+            myProgress={myProgress}
+            opponentProgress={opponentProgress}
           />
         )}
 
@@ -374,7 +383,6 @@ export default function PlayPage({ params }: IPlayPageProps) {
           isRunning={isRunning}
           isSubmitting={isSubmitting}
           judgeResult={judgeResult}
-          opponentProgress={opponentProgress}
           onCodeChange={handleCodeChange}
         />
       </div>

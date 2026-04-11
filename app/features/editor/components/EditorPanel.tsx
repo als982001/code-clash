@@ -4,10 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import CodeEditor from "@/app/features/editor/components/CodeEditor";
 import ResultPanel from "@/app/features/editor/components/ResultPanel";
-import type {
-  IJudgeResponse,
-  IOpponentProgress,
-} from "@/app/features/editor/types";
+import type { IJudgeResponse } from "@/app/features/editor/types";
 
 interface IEditorPanelProps {
   onRun: ({ code, language }: { code: string; language: string }) => void;
@@ -15,7 +12,6 @@ interface IEditorPanelProps {
   isRunning: boolean;
   isSubmitting: boolean;
   judgeResult: IJudgeResponse | null;
-  opponentProgress: IOpponentProgress | null;
   onCodeChange?: ({
     code,
     language,
@@ -36,7 +32,6 @@ export default function EditorPanel({
   isRunning,
   isSubmitting,
   judgeResult,
-  opponentProgress,
   onCodeChange,
 }: IEditorPanelProps) {
   const [codeByLanguage, setCodeByLanguage] = useState<Record<string, string>>({
@@ -152,23 +147,6 @@ export default function EditorPanel({
           onChange={handleCodeChange}
         />
       </div>
-
-      {opponentProgress && (
-        <div className="flex items-center gap-3 border-t px-4 py-2 text-sm">
-          <span className="text-muted-foreground">상대 진행률:</span>
-          <div className="bg-muted h-2 flex-1 rounded-full">
-            <div
-              className="h-2 rounded-full bg-red-500 transition-all"
-              style={{
-                width: `${opponentProgress.totalCount > 0 ? (opponentProgress.passedCount / opponentProgress.totalCount) * 100 : 0}%`,
-              }}
-            />
-          </div>
-          <span className="text-muted-foreground">
-            {opponentProgress.passedCount}/{opponentProgress.totalCount}
-          </span>
-        </div>
-      )}
 
       <div className="max-h-[40%] overflow-y-auto border-t">
         <ResultPanel result={judgeResult} isRunning={isRunning} />
