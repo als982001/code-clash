@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { use } from "react";
 
+import { toast } from "sonner";
+
 import EditorPanel from "@/app/features/editor/components/EditorPanel";
 import type {
   IJudgeResponse,
@@ -68,7 +70,6 @@ export default function PlayPage({ params }: IPlayPageProps) {
   const [myProgress, setMyProgress] = useState<IOpponentProgress | null>(null);
   const [opponentProgress, setOpponentProgress] =
     useState<IOpponentProgress | null>(null);
-  const [opponentSubmitted, setOpponentSubmitted] = useState(false);
   const [matchResult, setMatchResult] = useState<IMatchFinishedPayload | null>(
     null,
   );
@@ -108,7 +109,9 @@ export default function PlayPage({ params }: IPlayPageProps) {
   const handleOpponentSubmitted = useCallback(
     ({ payload }: { payload: IOpponentSubmittedPayload }) => {
       if (payload.userId !== userId) {
-        setOpponentSubmitted(true);
+        toast.warning("상대방이 최종 제출을 완료했습니다!", {
+          duration: 5000,
+        });
       }
     },
     [userId],
@@ -357,12 +360,6 @@ export default function PlayPage({ params }: IPlayPageProps) {
             >
               {opponentReady ? "● 상대: 준비 완료" : "○ 상대: 대기 중..."}
             </span>
-          </div>
-        )}
-
-        {!isMatchFinished && opponentSubmitted && (
-          <div className="flex items-center justify-center border-b bg-orange-500/10 px-4 py-2 text-sm text-orange-400">
-            상대방이 최종 제출을 완료했습니다!
           </div>
         )}
 
