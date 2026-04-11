@@ -1,6 +1,7 @@
 "use client";
 
 import type { IOpponentProgress } from "@/app/features/editor/types";
+import SoundToggle from "@/app/features/match/components/SoundToggle";
 import { formatMatchTime } from "@/app/features/match/utils/formatMatchTime";
 
 interface IMatchStatusBarProps {
@@ -110,6 +111,9 @@ export default function MatchStatusBar({
           </span>
         </div>
       </div>
+
+      <div className="bg-border h-6 w-px" />
+      <SoundToggle />
     </div>
   );
 }

@@ -11,7 +11,9 @@ import type {
   IOpponentProgress,
 } from "@/app/features/editor/types";
 import MatchStatusBar from "@/app/features/match/components/MatchStatusBar";
+import SoundToggle from "@/app/features/match/components/SoundToggle";
 import { useMatchRealtime } from "@/app/features/match/hooks/useMatchRealtime";
+import { useMatchSounds } from "@/app/features/match/hooks/useMatchSounds";
 import { useMatchTimer } from "@/app/features/match/hooks/useMatchTimer";
 import type {
   IPlayerReadyPayload,
@@ -76,6 +78,8 @@ export default function PlayPage({ params }: IPlayPageProps) {
   const [startTime, setStartTime] = useState<string | null>(null);
 
   const hasAutoSubmittedRef = useRef(false);
+  const hasPlayedWarningRef = useRef(false);
+  const hasPlayedResultRef = useRef(false);
   const codeRef = useRef<{ code: string; language: string }>({
     code: "",
     language: "javascript",
@@ -84,6 +88,8 @@ export default function PlayPage({ params }: IPlayPageProps) {
   const { client } = useMemo(() => {
     return createClient();
   }, []);
+
+  const { playSound } = useMatchSounds();
 
   const handlePlayerReady = useCallback(
     ({ payload }: { payload: IPlayerReadyPayload }) => {
@@ -112,16 +118,35 @@ export default function PlayPage({ params }: IPlayPageProps) {
         toast.warning("상대방이 최종 제출을 완료했습니다!", {
           duration: 5000,
         });
+
+        playSound({ type: "opponentSubmit" });
       }
     },
-    [userId],
+    [userId, playSound],
   );
 
   const handleMatchFinished = useCallback(
     ({ payload }: { payload: IMatchFinishedPayload }) => {
+      if (hasPlayedResultRef.current) {
+        return;
+      }
+
+      hasPlayedResultRef.current = true;
       setMatchResult(payload);
+
+      if (payload.winnerId === null) {
+        playSound({ type: "draw" });
+        return;
+      }
+
+      if (payload.winnerId === userId) {
+        playSound({ type: "win" });
+        return;
+      }
+
+      playSound({ type: "lose" });
     },
-    [],
+    [userId, playSound],
   );
 
   const handleCodeChange = useCallback(
@@ -246,6 +271,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
   const handleSubmit = useCallback(
     async ({ code, language }: { code: string; language: string }) => {
       setIsSubmitting(true);
+      playSound({ type: "submit" });
 
       try {
         const response = await fetch(`/api/match/${matchId}/submit`, {
@@ -272,7 +298,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
         setIsSubmitting(false);
       }
     },
-    [matchId, userId, broadcast],
+    [matchId, userId, broadcast, playSound],
   );
 
   const gameStarted = isReady && opponentReady;
@@ -302,7 +328,26 @@ export default function PlayPage({ params }: IPlayPageProps) {
     onExpire: handleTimerExpire,
   });
 
-  const resultMessage = (() => {
+  // 주의: 새로고침 후 이미 경고 구간이어도 1회 재생되는 것이 정상 동작
+  // (사용자가 경고를 놓치지 않도록 의도적으로 허용)
+  useEffect(() => {
+    if (!gameStarted || isMatchFinished) {
+      return;
+    }
+
+    if (!isWarning) {
+      return;
+    }
+
+    if (hasPlayedWarningRef.current) {
+      return;
+    }
+
+    hasPlayedWarningRef.current = true;
+    playSound({ type: "warning" });
+  }, [gameStarted, isMatchFinished, isWarning, playSound]);
+
+  const resultMessage = useMemo(() => {
     if (!matchResult) {
       return { text: "", color: "" };
     }
@@ -316,7 +361,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
     }
 
     return { text: "패배", color: "text-red-400" };
-  })();
+  }, [matchResult, userId]);
 
   return (
     <div className="flex h-screen">
@@ -326,7 +371,10 @@ export default function PlayPage({ params }: IPlayPageProps) {
 
       <div className="h-screen w-1/2">
         {isMatchFinished && (
-          <div className="flex flex-col items-center gap-2 border-b bg-gray-900/50 px-4 py-4">
+          <div className="relative flex flex-col items-center gap-2 border-b bg-gray-900/50 px-4 py-4">
+            <div className="absolute right-4 top-4">
+              <SoundToggle />
+            </div>
             <span className={`text-2xl font-bold ${resultMessage.color}`}>
               {resultMessage.text}
             </span>
@@ -337,13 +385,9 @@ export default function PlayPage({ params }: IPlayPageProps) {
               <span className="text-muted-foreground">|</span>
               <span className="text-muted-foreground">
                 상대 점수:{" "}
-                {Object.entries(matchResult.scores)
-                  .filter(([id]) => {
-                    return id !== userId;
-                  })
-                  .map(([, s]) => {
-                    return s;
-                  })[0] ?? 0}
+                {Object.entries(matchResult.scores).find(([id]) => {
+                  return id !== userId;
+                })?.[1] ?? 0}
               </span>
             </div>
           </div>
