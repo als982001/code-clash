@@ -15,26 +15,26 @@
 
 ### 1-1. 문제 시스템
 
-- [ ] DB 스키마 생성 (problems, test_cases)
-- [ ] 하드코딩 문제 5~10개 시드 데이터
-- [ ] 문제 조회 API (GET /api/problems)
+- [x] DB 스키마 생성 (problems, test_cases)
+- [x] 하드코딩 문제 5~10개 시드 데이터
+- [x] 문제 조회 API (GET /api/problems)
 
 ### 1-2. 코드 에디터 + 채점
 
-- [ ] `/play/[matchId]` 페이지 레이아웃 (문제 + 에디터 분할)
-- [ ] Monaco Editor 통합 (언어 선택, 테마)
-- [ ] Judge0 API 연동 (코드 실행 -> 채점 결과)
-- [ ] 채점 결과 UI (통과/실패, 실행 시간, 에러 표시)
-- [ ] 실행 간격 제한 (3초 Rate Limiting)
+- [x] `/play/[matchId]` 페이지 레이아웃 (문제 + 에디터 분할)
+- [x] Monaco Editor 통합 (언어 선택, 테마)
+- [x] Judge0 API 연동 (코드 실행 -> 채점 결과)
+- [x] 채점 결과 UI (통과/실패, 실행 시간, 에러 표시)
+- [x] 실행 간격 제한 (3초 Rate Limiting)
 
 ### 1-3. 실시간 대전 방
 
-- [ ] DB 스키마 생성 (matches, match_participants, submissions)
-- [ ] Supabase Realtime 채널 구성
-- [ ] 2인 대전 방 생성/참가 로직
-- [ ] 실시간 상태 동기화 (PLAYER_READY, PROGRESS_UPDATE)
-- [ ] 최종 제출 + 점수 계산 (서버사이드)
-- [ ] 승패 판정 로직
+- [x] DB 스키마 생성 (matches, match_participants, submissions)
+- [x] Supabase Realtime 채널 구성
+- [x] 2인 대전 방 생성/참가 로직
+- [x] 실시간 상태 동기화 (PLAYER_READY, PROGRESS_UPDATE)
+- [x] 최종 제출 + 점수 계산 (서버사이드)
+- [x] 승패 판정 로직
 
 ## Step 2: 긴장감 UX (Phase 2)
 
