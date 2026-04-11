@@ -12,8 +12,8 @@ const LANGUAGE_ID_MAP: Record<string, number> = {
   python: 71,
 };
 
-/** 기본 대전 시간 제한 (초) */
-const DEFAULT_MATCH_TIME_LIMIT = 1800;
+/** 기본 대전 시간 제한 (초) — 15분 */
+const DEFAULT_MATCH_TIME_LIMIT = 900;
 
 interface ISubmitBody {
   userId: string;
