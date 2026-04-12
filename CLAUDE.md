@@ -18,3 +18,11 @@ Key routing rules:
 - Architecture review → invoke plan-eng-review
 - Save progress, checkpoint, resume → invoke checkpoint
 - Code quality, health check → invoke health
+
+## 에이전트 모델 정책
+
+이 레포는 특별히 **모든 에이전트 작업에 `opus` 모델을 사용**한다.
+
+- `agent-team-workflow` 스킬의 모델 선택 기준표(Sonnet/Opus 분기)는 **무시**하고 무조건 `opus`로 통일한다.
+- 적용 대상: Analyzer(Plan), Code Writer, Code Reviewer, 기타 서브 에이전트 전부
+- 이유: 코드 품질을 최우선으로 하는 개인 프로젝트이므로 모델 비용보다 정확도/추론력을 우선한다.

@@ -12,11 +12,10 @@ const LANGUAGE_ID_MAP: Record<string, number> = {
   python: 71,
 };
 
-/** 기본 대전 시간 제한 (초) */
-const DEFAULT_MATCH_TIME_LIMIT = 1800;
+/** 기본 대전 시간 제한 (초) — 15분 */
+const DEFAULT_MATCH_TIME_LIMIT = 900;
 
 interface ISubmitBody {
-  userId: string;
   code: string;
   language: string;
 }
@@ -174,9 +173,7 @@ function determineWinner({
  * 최종 코드를 제출하고, 전체 테스트 케이스(히든 포함)로 채점하여 점수를 산출한다.
  * - 멱등성: matchId + userId 기준 첫 번째 제출만 유효
  * - 점수 산출은 서버사이드에서만 처리 (Anti-Cheat)
- * TODO: Step 3에서 Auth 도입 후 userId를 세션에서 추출하도록 변경
  * @param params.matchId 대전 방 ID
- * @param request.body.userId 제출자의 유저 ID
  * @param request.body.code 소스코드
  * @param request.body.language 언어 (javascript | python)
  * @return 제출 결과 (점수, 통과 케이스 수)
@@ -193,12 +190,26 @@ export async function POST(
   }
 
   const { matchId } = await params;
-  const body: ISubmitBody = await request.json();
-  const { userId, code, language } = body;
 
-  if (!userId || !code || !language) {
+  const { client } = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await client.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+  }
+
+  const userId = user.id;
+
+  const body: ISubmitBody = await request.json();
+  const { code, language } = body;
+
+  if (!code || !language) {
     return NextResponse.json(
-      { error: "userId, code, language가 필요합니다." },
+      { error: "code, language가 필요합니다." },
       { status: 400 },
     );
   }
@@ -211,8 +222,6 @@ export async function POST(
       { status: 400 },
     );
   }
-
-  const { client } = await createClient();
 
   // 멱등성: 이미 제출한 이력이 있으면 기존 결과 반환
   const { data: existingSubmission } = await client

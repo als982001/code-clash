@@ -1,14 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { use } from "react";
+
+import { toast } from "sonner";
 
 import EditorPanel from "@/app/features/editor/components/EditorPanel";
 import type {
   IJudgeResponse,
   IOpponentProgress,
 } from "@/app/features/editor/types";
+import { useAnonymousAuth } from "@/app/shared/hooks/useAnonymousAuth";
+import MatchStatusBar from "@/app/features/match/components/MatchStatusBar";
+import SoundToggle from "@/app/features/match/components/SoundToggle";
 import { useMatchRealtime } from "@/app/features/match/hooks/useMatchRealtime";
+import { useMatchSounds } from "@/app/features/match/hooks/useMatchSounds";
+import { useMatchTimer } from "@/app/features/match/hooks/useMatchTimer";
 import type {
   IPlayerReadyPayload,
   IProgressUpdatePayload,
@@ -19,57 +26,45 @@ import ProblemPanel from "@/app/features/problem/components/ProblemPanel";
 import type { IProblem } from "@/app/features/problem/types";
 import { createClient } from "@/app/shared/lib/supabase/client";
 
+/** 대전 제한 시간 (초) - 15분 */
+const MATCH_DURATION_SECONDS = 900;
+
 interface IPlayPageProps {
   params: Promise<{ matchId: string }>;
 }
 
-/**
- * 임시 userId를 생성하거나 localStorage에서 가져온다.
- * Step 3(Auth)에서 세션 기반으로 교체 예정
- * @return userId 문자열
- */
-function getOrCreateUserId() {
-  if (typeof window === "undefined") {
-    return { userId: "" };
-  }
-
-  const STORAGE_KEY = "code-clash-temp-user-id";
-  const existing = localStorage.getItem(STORAGE_KEY);
-
-  if (existing) {
-    return { userId: existing };
-  }
-
-  const newId = crypto.randomUUID();
-
-  localStorage.setItem(STORAGE_KEY, newId);
-
-  return { userId: newId };
-}
-
 export default function PlayPage({ params }: IPlayPageProps) {
   const { matchId } = use(params);
+  const { userId, isLoading: isAuthLoading } = useAnonymousAuth();
   const [problem, setProblem] = useState<IProblem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [judgeResult, setJudgeResult] = useState<IJudgeResponse | null>(null);
 
-  const [userId] = useState(() => {
-    return getOrCreateUserId().userId;
-  });
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
+  const [myProgress, setMyProgress] = useState<IOpponentProgress | null>(null);
   const [opponentProgress, setOpponentProgress] =
     useState<IOpponentProgress | null>(null);
-  const [opponentSubmitted, setOpponentSubmitted] = useState(false);
   const [matchResult, setMatchResult] = useState<IMatchFinishedPayload | null>(
     null,
   );
+  const [startTime, setStartTime] = useState<string | null>(null);
+
+  const hasAutoSubmittedRef = useRef(false);
+  const hasPlayedWarningRef = useRef(false);
+  const hasPlayedResultRef = useRef(false);
+  const codeRef = useRef<{ code: string; language: string }>({
+    code: "",
+    language: "javascript",
+  });
 
   const { client } = useMemo(() => {
     return createClient();
   }, []);
+
+  const { playSound } = useMatchSounds();
 
   const handlePlayerReady = useCallback(
     ({ payload }: { payload: IPlayerReadyPayload }) => {
@@ -95,15 +90,43 @@ export default function PlayPage({ params }: IPlayPageProps) {
   const handleOpponentSubmitted = useCallback(
     ({ payload }: { payload: IOpponentSubmittedPayload }) => {
       if (payload.userId !== userId) {
-        setOpponentSubmitted(true);
+        toast.warning("상대방이 최종 제출을 완료했습니다!", {
+          duration: 5000,
+        });
+
+        playSound({ type: "opponentSubmit" });
       }
     },
-    [userId],
+    [userId, playSound],
   );
 
   const handleMatchFinished = useCallback(
     ({ payload }: { payload: IMatchFinishedPayload }) => {
+      if (hasPlayedResultRef.current) {
+        return;
+      }
+
+      hasPlayedResultRef.current = true;
       setMatchResult(payload);
+
+      if (payload.winnerId === null) {
+        playSound({ type: "draw" });
+        return;
+      }
+
+      if (payload.winnerId === userId) {
+        playSound({ type: "win" });
+        return;
+      }
+
+      playSound({ type: "lose" });
+    },
+    [userId, playSound],
+  );
+
+  const handleCodeChange = useCallback(
+    ({ code, language }: { code: string; language: string }) => {
+      codeRef.current = { code, language };
     },
     [],
   );
@@ -122,7 +145,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
     const fetchProblem = async () => {
       const { data: match } = await client
         .from("matches")
-        .select("problem_id")
+        .select("problem_id, start_time")
         .eq("id", matchId)
         .single();
 
@@ -130,6 +153,8 @@ export default function PlayPage({ params }: IPlayPageProps) {
         setIsLoading(false);
         return;
       }
+
+      setStartTime(match.start_time ?? null);
 
       const response = await fetch(`/api/problems/${match.problem_id}`);
 
@@ -197,6 +222,11 @@ export default function PlayPage({ params }: IPlayPageProps) {
 
       setJudgeResult(data);
 
+      setMyProgress({
+        passedCount: data.totalPassed,
+        totalCount: data.totalCases,
+      });
+
       // 코드 실행 결과를 상대방에게 브로드캐스트
       broadcast({
         event: "PROGRESS_UPDATE",
@@ -213,45 +243,86 @@ export default function PlayPage({ params }: IPlayPageProps) {
     }
   };
 
-  const handleSubmit = async ({
-    code,
-    language,
-  }: {
-    code: string;
-    language: string;
-  }) => {
-    setIsSubmitting(true);
+  const handleSubmit = useCallback(
+    async ({ code, language }: { code: string; language: string }) => {
+      setIsSubmitting(true);
+      playSound({ type: "submit" });
 
-    try {
-      const response = await fetch(`/api/match/${matchId}/submit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, code, language }),
-      });
+      try {
+        const response = await fetch(`/api/match/${matchId}/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code, language }),
+        });
 
-      if (!response.ok) {
-        const error = await response.json();
+        if (!response.ok) {
+          const error = await response.json();
 
+          console.error(error);
+          return;
+        }
+
+        // 상대방에게 제출 완료 알림
+        broadcast({
+          event: "OPPONENT_SUBMITTED",
+          payload: { userId },
+        });
+      } catch (error) {
         console.error(error);
-        return;
+      } finally {
+        setIsSubmitting(false);
       }
-
-      // 상대방에게 제출 완료 알림
-      broadcast({
-        event: "OPPONENT_SUBMITTED",
-        payload: { userId },
-      });
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+    [matchId, userId, broadcast, playSound],
+  );
 
   const gameStarted = isReady && opponentReady;
   const isMatchFinished = matchResult !== null;
 
-  const resultMessage = (() => {
+  const handleTimerExpire = useCallback(() => {
+    if (hasAutoSubmittedRef.current) {
+      return;
+    }
+
+    if (isMatchFinished) {
+      return;
+    }
+
+    hasAutoSubmittedRef.current = true;
+
+    const { code, language } = codeRef.current;
+    const fallbackCode = code.trim().length > 0 ? code : "// time out";
+
+    handleSubmit({ code: fallbackCode, language });
+  }, [handleSubmit, isMatchFinished]);
+
+  const { remainingSeconds, isExpired, isWarning } = useMatchTimer({
+    startTime,
+    durationSeconds: MATCH_DURATION_SECONDS,
+    enabled: gameStarted && !isMatchFinished,
+    onExpire: handleTimerExpire,
+  });
+
+  // 주의: 새로고침 후 이미 경고 구간이어도 1회 재생되는 것이 정상 동작
+  // (사용자가 경고를 놓치지 않도록 의도적으로 허용)
+  useEffect(() => {
+    if (!gameStarted || isMatchFinished) {
+      return;
+    }
+
+    if (!isWarning) {
+      return;
+    }
+
+    if (hasPlayedWarningRef.current) {
+      return;
+    }
+
+    hasPlayedWarningRef.current = true;
+    playSound({ type: "warning" });
+  }, [gameStarted, isMatchFinished, isWarning, playSound]);
+
+  const resultMessage = useMemo(() => {
     if (!matchResult) {
       return { text: "", color: "" };
     }
@@ -265,7 +336,15 @@ export default function PlayPage({ params }: IPlayPageProps) {
     }
 
     return { text: "패배", color: "text-red-400" };
-  })();
+  }, [matchResult, userId]);
+
+  if (isAuthLoading || !userId) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <span className="text-muted-foreground">인증 중...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen">
@@ -275,7 +354,10 @@ export default function PlayPage({ params }: IPlayPageProps) {
 
       <div className="h-screen w-1/2">
         {isMatchFinished && (
-          <div className="flex flex-col items-center gap-2 border-b bg-gray-900/50 px-4 py-4">
+          <div className="relative flex flex-col items-center gap-2 border-b bg-gray-900/50 px-4 py-4">
+            <div className="absolute right-4 top-4">
+              <SoundToggle />
+            </div>
             <span className={`text-2xl font-bold ${resultMessage.color}`}>
               {resultMessage.text}
             </span>
@@ -286,13 +368,9 @@ export default function PlayPage({ params }: IPlayPageProps) {
               <span className="text-muted-foreground">|</span>
               <span className="text-muted-foreground">
                 상대 점수:{" "}
-                {Object.entries(matchResult.scores)
-                  .filter(([id]) => {
-                    return id !== userId;
-                  })
-                  .map(([, s]) => {
-                    return s;
-                  })[0] ?? 0}
+                {Object.entries(matchResult.scores).find(([id]) => {
+                  return id !== userId;
+                })?.[1] ?? 0}
               </span>
             </div>
           </div>
@@ -312,10 +390,15 @@ export default function PlayPage({ params }: IPlayPageProps) {
           </div>
         )}
 
-        {!isMatchFinished && opponentSubmitted && (
-          <div className="flex items-center justify-center border-b bg-orange-500/10 px-4 py-2 text-sm text-orange-400">
-            상대방이 최종 제출을 완료했습니다!
-          </div>
+        {gameStarted && !isMatchFinished && (
+          <MatchStatusBar
+            remainingSeconds={remainingSeconds}
+            isExpired={isExpired}
+            isWarning={isWarning}
+            hasStartTime={startTime !== null}
+            myProgress={myProgress}
+            opponentProgress={opponentProgress}
+          />
         )}
 
         <EditorPanel
@@ -324,7 +407,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
           isRunning={isRunning}
           isSubmitting={isSubmitting}
           judgeResult={judgeResult}
-          opponentProgress={opponentProgress}
+          onCodeChange={handleCodeChange}
         />
       </div>
     </div>

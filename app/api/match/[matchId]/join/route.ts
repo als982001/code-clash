@@ -2,36 +2,32 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/app/shared/lib/supabase/server";
 
-interface IJoinMatchBody {
-  userId: string;
-}
-
 /**
  * 대전 방에 참가한다. 2명이 모이면 자동으로 게임을 시작한다.
  * - status를 ongoing으로 변경
  * - 랜덤 문제 배정
  * - start_time 기록
- * TODO: Step 3에서 Auth 도입 후 userId를 세션에서 추출하도록 변경
  * @param params.matchId 참가할 대전 방 ID
- * @param request.body.userId 참가자의 유저 ID
  * @return 업데이트된 match 정보
  */
 export async function POST(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ matchId: string }> },
 ) {
   const { matchId } = await params;
-  const body: IJoinMatchBody = await request.json();
-  const { userId } = body;
-
-  if (!userId) {
-    return NextResponse.json(
-      { error: "userId가 필요합니다." },
-      { status: 400 },
-    );
-  }
 
   const { client } = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await client.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+  }
+
+  const userId = user.id;
 
   const { data: match, error: matchError } = await client
     .from("matches")
