@@ -10,6 +10,7 @@ import type {
   IJudgeResponse,
   IOpponentProgress,
 } from "@/app/features/editor/types";
+import { useAnonymousAuth } from "@/app/shared/hooks/useAnonymousAuth";
 import MatchStatusBar from "@/app/features/match/components/MatchStatusBar";
 import SoundToggle from "@/app/features/match/components/SoundToggle";
 import { useMatchRealtime } from "@/app/features/match/hooks/useMatchRealtime";
@@ -32,41 +33,15 @@ interface IPlayPageProps {
   params: Promise<{ matchId: string }>;
 }
 
-/**
- * 임시 userId를 생성하거나 localStorage에서 가져온다.
- * Step 3(Auth)에서 세션 기반으로 교체 예정
- * @return userId 문자열
- */
-function getOrCreateUserId() {
-  if (typeof window === "undefined") {
-    return { userId: "" };
-  }
-
-  const STORAGE_KEY = "code-clash-temp-user-id";
-  const existing = localStorage.getItem(STORAGE_KEY);
-
-  if (existing) {
-    return { userId: existing };
-  }
-
-  const newId = crypto.randomUUID();
-
-  localStorage.setItem(STORAGE_KEY, newId);
-
-  return { userId: newId };
-}
-
 export default function PlayPage({ params }: IPlayPageProps) {
   const { matchId } = use(params);
+  const { userId, isLoading: isAuthLoading } = useAnonymousAuth();
   const [problem, setProblem] = useState<IProblem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [judgeResult, setJudgeResult] = useState<IJudgeResponse | null>(null);
 
-  const [userId] = useState(() => {
-    return getOrCreateUserId().userId;
-  });
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
   const [myProgress, setMyProgress] = useState<IOpponentProgress | null>(null);
@@ -277,7 +252,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
         const response = await fetch(`/api/match/${matchId}/submit`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId, code, language }),
+          body: JSON.stringify({ code, language }),
         });
 
         if (!response.ok) {
@@ -362,6 +337,14 @@ export default function PlayPage({ params }: IPlayPageProps) {
 
     return { text: "패배", color: "text-red-400" };
   }, [matchResult, userId]);
+
+  if (isAuthLoading || !userId) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <span className="text-muted-foreground">인증 중...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen">
