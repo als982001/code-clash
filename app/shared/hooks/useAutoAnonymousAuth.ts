@@ -7,11 +7,12 @@ import { toast } from "sonner";
 import { createClient } from "@/app/shared/lib/supabase/client";
 
 /**
- * Supabase 익명 로그인을 자동으로 수행하고 userId를 반환한다.
- * 기존 세션이 있으면 재사용하고, 없으면 signInAnonymously()를 호출한다.
+ * /play/[matchId] 진입 시 자동 익명 가입을 수행하고 userId를 반환한다.
+ * 초대 링크로 들어온 비로그인 유저가 마찰 없이 매치에 입장할 수 있도록 마운트 즉시 signInAnonymously()를 호출한다.
+ * 기존 세션이 있으면 재사용하며, 자동 가입이 필요 없는 일반 페이지에서는 useAuth() 훅을 사용한다.
  * @return userId (인증된 유저 ID) 및 로딩 상태
  */
-export function useAnonymousAuth() {
+export function useAutoAnonymousAuth() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
