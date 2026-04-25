@@ -29,6 +29,7 @@
 .claude/tsc-cache
 .env
 .env*
+.mcp.json
 .idea
 .pnp.*
 .pnpm-debug.log*
