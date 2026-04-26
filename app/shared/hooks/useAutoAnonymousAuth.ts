@@ -17,12 +17,15 @@ export function useAutoAnonymousAuth() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     const { client } = createClient();
 
     const initAuth = async () => {
       const {
         data: { user },
       } = await client.auth.getUser();
+
+      if (!isMounted) return;
 
       if (user) {
         setUserId(user.id);
@@ -31,6 +34,8 @@ export function useAutoAnonymousAuth() {
       }
 
       const { data, error } = await client.auth.signInAnonymously();
+
+      if (!isMounted) return;
 
       if (error) {
         console.error(error);
@@ -50,6 +55,10 @@ export function useAutoAnonymousAuth() {
     };
 
     initAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return { userId, isLoading };

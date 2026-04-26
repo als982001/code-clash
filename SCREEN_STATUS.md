@@ -18,17 +18,17 @@
 
 ## 인증 / 공통 인프라
 
-| 영역                        | 상태 | 위치 / 파일                                  | 설명                                                            |
-| --------------------------- | ---- | -------------------------------------------- | --------------------------------------------------------------- |
-| 익명 자동 가입              | ✅   | `app/shared/hooks/useAutoAnonymousAuth.ts`   | `/play` 진입 시 트리거. `signInAnonymously` + 유저 ID 노출      |
-| 통합 인증 상태 훅           | ✅   | `app/shared/hooks/useAuth.ts`                | React Query 단일 진입점. user + profiles 조회 + fallback upsert |
-| 익명 유저 판별 유틸         | ✅   | `app/shared/utils/isAnonymousUser.ts`        | 객체 매개변수 컨벤션 적용                                       |
-| Supabase anon 클라이언트    | ✅   | `app/shared/lib/supabase/{client,server}.ts` | 브라우저/서버 클라이언트 분리 (RLS 검증 경로)                   |
-| Supabase service 클라이언트 | ✅   | `app/shared/lib/supabase/service.ts` (PR #8) | 서버 전용 service-role. 히든 test_cases 채점 시 RLS bypass      |
-| middleware.ts               | 🔄   | `middleware.ts`                              | 세션 쿠키 자동 갱신만 동작. 라우트 가드는 PR #7-C 예정          |
-| OAuth 로그인 플로우         | ⏳   | —                                            | PR #7-B 예정 (`signInWithOAuth` + `linkIdentity` 분기)          |
-| AuthListener (전역 단일)    | ⏳   | —                                            | PR #7-C 예정 (`onAuthStateChange` 단일 구독)                    |
-| UserMenu 드롭다운           | ⏳   | —                                            | PR #7-C 예정                                                    |
+| 영역                        | 상태 | 위치 / 파일                                  | 설명                                                                                  |
+| --------------------------- | ---- | -------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 익명 자동 가입              | ✅   | `app/shared/hooks/useAutoAnonymousAuth.ts`   | `/play` 진입 시 트리거. `signInAnonymously` + 유저 ID 노출 (isMounted 가드 적용 완료) |
+| 통합 인증 상태 훅           | ✅   | `app/shared/hooks/useAuth.ts`                | React Query 단일 진입점. user + profiles 조회 + fallback upsert                       |
+| 익명 유저 판별 유틸         | ✅   | `app/shared/utils/isAnonymousUser.ts`        | 객체 매개변수 컨벤션 적용                                                             |
+| Supabase anon 클라이언트    | ✅   | `app/shared/lib/supabase/{client,server}.ts` | 브라우저/서버 클라이언트 분리 (RLS 검증 경로)                                         |
+| Supabase service 클라이언트 | ✅   | `app/shared/lib/supabase/service.ts` (PR #8) | 서버 전용 service-role. 히든 test_cases 채점 시 RLS bypass                            |
+| middleware.ts               | 🔄   | `middleware.ts`                              | 세션 쿠키 자동 갱신만 동작. 라우트 가드는 PR #7-C 예정                                |
+| OAuth 로그인 플로우         | ⏳   | —                                            | PR #7-B 예정 (`signInWithOAuth` + `linkIdentity` 분기)                                |
+| AuthListener (전역 단일)    | ⏳   | —                                            | PR #7-C 예정 (`onAuthStateChange` 단일 구독)                                          |
+| UserMenu 드롭다운           | ⏳   | —                                            | PR #7-C 예정                                                                          |
 
 ## API 라우트 (참고용)
 
@@ -58,15 +58,10 @@
 ## 마지막 갱신
 
 - **일자**: 2026-04-26
-- **PR**: #8 (`fix/db-rls-and-seed`) 머지 완료
-- **변경 요약**:
-  - `problems` / `test_cases` / `ai_reviews` RLS 정책 3종 추가
-  - 시드 데이터 SoT 멱등 마이그레이션 (9문제 + 43케이스)
-  - `app/shared/lib/supabase/service.ts` 신설 (server-only + service-role)
-  - `submit/route.ts` test_cases 조회만 service client로 분기
+- **PR**: `chore/step3-followup-fixes` 작성 직후 (PR #8 머지 후속)
+- **변경 요약**: 후속 보강 — isMounted 가드 / useAuth retry / service singleton + fail-fast / test_cases UNIQUE
 - **다음 PR 예정 순서**:
-  1. **후속 보강 PR** — `useAutoAnonymousAuth isMounted` 가드 + `useAuth` retry 정책 + I-4(service singleton) + I-5(test_cases UNIQUE)
-  2. **PR #7-B** — `/login` + `/auth/callback` (OAuth + linkIdentity)
-  3. **PR #7-C** — middleware 가드 + AuthListener + UserMenu + **메인 화면 재작성**
-  4. **Step 3 매칭 PR** — 친구 초대 + dashboard
-  5. **Step 3 프로필 PR** — `/profile/[userId]`
+  1. **PR #7-B** — `/login` + `/auth/callback` (OAuth + linkIdentity)
+  2. **PR #7-C** — middleware 가드 + AuthListener + UserMenu + **메인 화면 재작성**
+  3. **Step 3 매칭 PR** — 친구 초대 + dashboard
+  4. **Step 3 프로필 PR** — `/profile/[userId]`

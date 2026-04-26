@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { createClient } from "@/app/shared/lib/supabase/server";
 import { createServiceClient } from "@/app/shared/lib/supabase/service";
 
@@ -185,7 +187,7 @@ export async function POST(
 ) {
   if (!JUDGE0_API_URL || !JUDGE0_API_KEY) {
     return NextResponse.json(
-      { error: "채점 서버 설정이 누락되었습니다." },
+      { error: "채점 서버 설정이 누락되었습니다 (E_JUDGE0)." },
       { status: 500 },
     );
   }
@@ -281,7 +283,18 @@ export async function POST(
 
   // 전체 테스트 케이스 조회 (히든 포함) — service role로 RLS bypass.
   // service role 사용은 이 한 곳으로 한정한다. 다른 client 호출까지 service로 확장하면 anti-cheat RLS 검증이 사라진다.
-  const { client: serviceClient } = createServiceClient();
+  let serviceClient: SupabaseClient;
+
+  try {
+    serviceClient = createServiceClient().client;
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json(
+      { error: "채점 서버 설정이 누락되었습니다 (E_SERVICE)." },
+      { status: 500 },
+    );
+  }
 
   const { data: testCases } = await serviceClient
     .from("test_cases")

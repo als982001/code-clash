@@ -26,17 +26,28 @@ export function useAuth() {
     queryFn: async () => {
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
+
+      // AuthSessionMissingError는 정상 흐름(비로그인) → throw 안 함.
+      // 그 외 인증 에러만 throw → retry 정책이 실효적으로 동작.
+      if (authError && authError.name !== "AuthSessionMissingError") {
+        throw authError;
+      }
 
       if (!user) {
         return { user: null, profile: null };
       }
 
-      const { data: existing } = await supabase
+      const { data: existing, error: profileError } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", user.id)
         .maybeSingle();
+
+      if (profileError) {
+        throw profileError;
+      }
 
       if (existing) {
         return { user, profile: existing };
@@ -47,7 +58,7 @@ export function useAuth() {
         ? `Anon_${user.id.slice(0, 8)}`
         : `Player_${user.id.slice(0, 8)}`;
 
-      const { data: upserted } = await supabase
+      const { data: upserted, error: upsertError } = await supabase
         .from("profiles")
         .upsert(
           { id: user.id, nickname: fallbackNickname },
@@ -56,9 +67,23 @@ export function useAuth() {
         .select()
         .single();
 
+      if (upsertError) {
+        throw upsertError;
+      }
+
       return { user, profile: upserted };
     },
     staleTime: 1000 * 60,
+    retry: (failureCount, error) => {
+      // 인증/RLS 거부(4xx)는 즉시 실패 처리. 네트워크/5xx만 1회 재시도.
+      const status = (error as { status?: number })?.status;
+
+      if (status !== undefined && status >= 400 && status < 500) {
+        return false;
+      }
+
+      return failureCount < 1;
+    },
   });
 
   const isAnonymous = data?.user

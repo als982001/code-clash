@@ -72,7 +72,7 @@ app/
 ├── shared/
 │   ├── components/QueryProvider  ✅  staleTime 60s + retry 1 글로벌
 │   ├── hooks/useAuth             ✅  단일 진입점 (React Query + fallback upsert)
-│   ├── hooks/useAutoAnonymousAuth ✅  /play 진입 시 자동 익명 가입 (⚠️ isMounted 가드 미적용)
+│   ├── hooks/useAutoAnonymousAuth ✅  /play 진입 시 자동 익명 가입 (isMounted 가드 적용 완료)
 │   ├── lib/supabase/{client,server,service}.ts ✅  브라우저/서버(anon) + service-role(server-only)
 │   ├── stores/useSoundStore.ts   ✅  Zustand 사운드 토글
 │   └── utils/isAnonymousUser.ts  ✅  객체 매개변수 컨벤션 적용
@@ -118,22 +118,21 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 
 ## 부분 구현 / 스텁 영역 🔄 ⏳
 
-| 영역                       | 마커 | 비고                                                                               |
-| -------------------------- | ---- | ---------------------------------------------------------------------------------- |
-| `app/page.tsx` 메인 화면   | 🚨   | Next.js 기본 템플릿. PR #7-C 또는 별도 PR로 재작성 필요                            |
-| `app/(auth)/login/`        | ⏳   | PR #7-B 예정 (`signInWithOAuth` + `linkIdentity` 분기)                             |
-| `app/(auth)/callback/`     | ⏳   | PR #7-B 예정 (`exchangeCodeForSession` + 서버 측 닉네임 동기화)                    |
-| `app/(main)/dashboard/`    | ⏳   | Step 3 매칭 PR 예정 (친구 초대 매치 리스트)                                        |
-| `app/(main)/profile/[id]/` | ⏳   | Step 3 프로필 PR 예정 (프로필 보기 + 닉네임 편집)                                  |
-| `app/(main)/leaderboard/`  | ⏳   | 명세 미정 (장기)                                                                   |
-| `app/(main)/result/[id]/`  | ⏳   | 빈 디렉토리. 결과는 `/play` 페이지 인라인 (분리 여부 미정)                         |
-| `app/api/ai/`              | ⏳   | 빈 디렉토리. Gemini 코드 리뷰 API 미구현                                           |
-| `app/features/review/`     | ⏳   | 빈 디렉토리. AI 리뷰 UI 미구현                                                     |
-| `useAutoAnonymousAuth`     | 🔄   | `isMounted` 가드 미적용 → 후속 보강 PR에서 처리 예정 (CODE_CONVENTIONS async 가드) |
-| 라우트 가드 (middleware)   | ⏳   | 현재 middleware는 세션 쿠키 갱신만 함 — 인증 분기 없음 (PR #7-C 예정)              |
-| AuthListener (전역)        | ⏳   | `onAuthStateChange` 단일 구독 미구현 (PR #7-C 예정)                                |
-| UserMenu                   | ⏳   | 로그인된 유저 드롭다운 메뉴 미구현 (PR #7-C 예정)                                  |
-| Edge Functions             | ⏳   | 0개 (`mcp__supabase__list_edge_functions` 결과 비어있음)                           |
+| 영역                       | 마커 | 비고                                                                  |
+| -------------------------- | ---- | --------------------------------------------------------------------- |
+| `app/page.tsx` 메인 화면   | 🚨   | Next.js 기본 템플릿. PR #7-C 또는 별도 PR로 재작성 필요               |
+| `app/(auth)/login/`        | ⏳   | PR #7-B 예정 (`signInWithOAuth` + `linkIdentity` 분기)                |
+| `app/(auth)/callback/`     | ⏳   | PR #7-B 예정 (`exchangeCodeForSession` + 서버 측 닉네임 동기화)       |
+| `app/(main)/dashboard/`    | ⏳   | Step 3 매칭 PR 예정 (친구 초대 매치 리스트)                           |
+| `app/(main)/profile/[id]/` | ⏳   | Step 3 프로필 PR 예정 (프로필 보기 + 닉네임 편집)                     |
+| `app/(main)/leaderboard/`  | ⏳   | 명세 미정 (장기)                                                      |
+| `app/(main)/result/[id]/`  | ⏳   | 빈 디렉토리. 결과는 `/play` 페이지 인라인 (분리 여부 미정)            |
+| `app/api/ai/`              | ⏳   | 빈 디렉토리. Gemini 코드 리뷰 API 미구현                              |
+| `app/features/review/`     | ⏳   | 빈 디렉토리. AI 리뷰 UI 미구현                                        |
+| 라우트 가드 (middleware)   | ⏳   | 현재 middleware는 세션 쿠키 갱신만 함 — 인증 분기 없음 (PR #7-C 예정) |
+| AuthListener (전역)        | ⏳   | `onAuthStateChange` 단일 구독 미구현 (PR #7-C 예정)                   |
+| UserMenu                   | ⏳   | 로그인된 유저 드롭다운 메뉴 미구현 (PR #7-C 예정)                     |
+| Edge Functions             | ⏳   | 0개 (`mcp__supabase__list_edge_functions` 결과 비어있음)              |
 
 ---
 
@@ -150,7 +149,7 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 
 ### 2. ✅ Resolved — `problems` / `test_cases` 시드
 
-- `20260426_seed_problems.sql`로 멱등 INSERT 적용 (problems 9건 / test_cases 42건)
+- `20260426_seed_problems.sql`로 멱등 INSERT 적용 (problems 9건 / test_cases 43건)
 - 운영 DB에는 이미 동일 데이터 존재 → 마이그레이션은 신규 환경 부트스트랩 + 회귀 방어용
 - problems: `ON CONFLICT (id) DO NOTHING`, test_cases: `WHERE NOT EXISTS` 패턴
 
@@ -160,11 +159,12 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 - PR #7-B에서 `/login`을 만들어도 진입할 메인 화면이 없는 어색한 동선
 - PR 우선순위 재검토 권장
 
-### 4. 🔄 Convention — `useAutoAnonymousAuth` isMounted 가드 누락
+### 4. ✅ Resolved — `useAutoAnonymousAuth` isMounted 가드 + 후속 보강 (PR `chore/step3-followup-fixes`)
 
-- `useEffect` 내부에서 `await` 후 `setUserId`/`setIsLoading` 호출 — unmount 후 setState 경고 가능성
-- CODE_CONVENTIONS의 "async + setState 가드 패턴" 위반
-- **다음 작업**: 후속 보강 PR (이번 sprint 1순위)에 포함 — `useAuth` retry 정책 + service client 싱글턴(I-4) + test_cases UNIQUE 제약(I-5)도 함께
+- `useAutoAnonymousAuth`에 `let isMounted = true;` + cleanup + 모든 await 직후 가드 적용
+- `useAuth`에 `retry` 함수 명시 (4xx 즉시 fail / 그 외 1회 재시도)
+- `app/shared/lib/supabase/service.ts` 모듈 레벨 lazy 싱글턴 + `submit/route.ts` ENV fail-fast try/catch
+- `20260427_test_cases_unique_constraint.sql`로 `(problem_id, input, is_hidden)` UNIQUE 제약 + `is_hidden NOT NULL` 보강 (DO 블록 멱등)
 
 ### 5. ⚠️ Env — 일관성 깨진 키 이름
 
@@ -224,17 +224,18 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마이그레이션 이력 (`supabase/migrations/`)
 
-| 파일                                       | 내용                                                              |
-| ------------------------------------------ | ----------------------------------------------------------------- |
-| `20260412_minimal_rls.sql`                 | 최소 RLS (matches/match_participants/submissions)                 |
-| `20260425_handle_new_user_trigger.sql`     | profiles 자동 생성 트리거 + 함수                                  |
-| `20260425_backfill_missing_profiles.sql`   | 누락 익명 유저 백필                                               |
-| `20260425_profiles_rls_policies.sql`       | profiles `public_read` + `self_update`                            |
-| `20260425_match_invite_columns.sql`        | matches invite 컬럼 3종 + 부분 인덱스                             |
-| `20260425_pr5_review_index_cleanup.sql`    | UNIQUE 제약과 중복된 인덱스 제거 (Code Reviewer 피드백)           |
-| `20260425_pr7a_profiles_insert_policy.sql` | profiles `self_insert` 정책 (Code Reviewer Critical fix)          |
-| `20260426_rls_problems_test_cases.sql`     | problems/test_cases/ai_reviews RLS 3종 (히든은 service role 전용) |
-| `20260426_seed_problems.sql`               | 9 problems + 43 test_cases 멱등 시드 (SoT 확보)                   |
+| 파일                                        | 내용                                                                                                         |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `20260412_minimal_rls.sql`                  | 최소 RLS (matches/match_participants/submissions)                                                            |
+| `20260425_handle_new_user_trigger.sql`      | profiles 자동 생성 트리거 + 함수                                                                             |
+| `20260425_backfill_missing_profiles.sql`    | 누락 익명 유저 백필                                                                                          |
+| `20260425_profiles_rls_policies.sql`        | profiles `public_read` + `self_update`                                                                       |
+| `20260425_match_invite_columns.sql`         | matches invite 컬럼 3종 + 부분 인덱스                                                                        |
+| `20260425_pr5_review_index_cleanup.sql`     | UNIQUE 제약과 중복된 인덱스 제거 (Code Reviewer 피드백)                                                      |
+| `20260425_pr7a_profiles_insert_policy.sql`  | profiles `self_insert` 정책 (Code Reviewer Critical fix)                                                     |
+| `20260426_rls_problems_test_cases.sql`      | problems/test_cases/ai_reviews RLS 3종 (히든은 service role 전용)                                            |
+| `20260426_seed_problems.sql`                | 9 problems + 43 test_cases 멱등 시드 (SoT 확보)                                                              |
+| `20260427_test_cases_unique_constraint.sql` | `test_cases (problem_id, input, is_hidden)` UNIQUE 제약 + `is_hidden NOT NULL` (DO 블록 멱등, I-5 follow-up) |
 
 ---
 
@@ -270,10 +271,10 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 ## 마지막 갱신
 
 - **일자**: 2026-04-26
-- **시점**: PR #8 (`fix/db-rls-and-seed`) dev 머지 완료 후
+- **시점**: PR `chore/step3-followup-fixes` 작성 직후
 - **다음 액션 순서**:
-  1. **후속 보강 PR** (현재 sprint 1순위) — `useAutoAnonymousAuth isMounted` 가드 + `useAuth retry` 정책 + service client 싱글턴(I-4) + test_cases UNIQUE 제약(I-5)
-  2. **PR #7-B** — `/login` + `/auth/callback` (`signInWithOAuth` + `linkIdentity` 분기, 서버 측 닉네임 동기화)
-  3. **PR #7-C** — middleware 라우트 가드 + AuthListener + UserMenu + **`app/page.tsx` 메인 화면 재작성** (PR #7-C에 끼워넣기)
-  4. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + invite_token 흐름
-  5. **Step 3 프로필 PR** — `/profile/[userId]` + 닉네임 편집
+  1. **PR #7-B** — `/login` + `/auth/callback` (`signInWithOAuth` + `linkIdentity` 분기, 서버 측 닉네임 동기화)
+  2. **PR #7-C** — middleware 라우트 가드 + AuthListener + UserMenu + **`app/page.tsx` 메인 화면 재작성** (PR #7-C에 끼워넣기)
+  3. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + invite_token 흐름
+  4. **Step 3 프로필 PR** — `/profile/[userId]` + 닉네임 편집
+  5. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터
