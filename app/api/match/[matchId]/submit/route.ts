@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/app/shared/lib/supabase/server";
+import { createServiceClient } from "@/app/shared/lib/supabase/service";
 
 const JUDGE0_API_URL = process.env.JUDGE0_API_URL;
 const JUDGE0_API_KEY = process.env.JUDGE0_API_KEY;
@@ -278,8 +279,11 @@ export async function POST(
     );
   }
 
-  // 전체 테스트 케이스 조회 (히든 포함)
-  const { data: testCases } = await client
+  // 전체 테스트 케이스 조회 (히든 포함) — service role로 RLS bypass.
+  // service role 사용은 이 한 곳으로 한정한다. 다른 client 호출까지 service로 확장하면 anti-cheat RLS 검증이 사라진다.
+  const { client: serviceClient } = createServiceClient();
+
+  const { data: testCases } = await serviceClient
     .from("test_cases")
     .select("id, input, expected_output")
     .eq("problem_id", match.problem_id);
