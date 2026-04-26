@@ -59,6 +59,16 @@ export function useAuth() {
       return { user, profile: upserted };
     },
     staleTime: 1000 * 60,
+    retry: (failureCount, error) => {
+      // 인증/RLS 거부(4xx)는 즉시 실패 처리. 네트워크/5xx만 1회 재시도.
+      const status = (error as { status?: number })?.status;
+
+      if (status !== undefined && status >= 400 && status < 500) {
+        return false;
+      }
+
+      return failureCount < 1;
+    },
   });
 
   const isAnonymous = data?.user
