@@ -62,7 +62,7 @@ Key routing rules:
 
 ### 작업 완료 후 필수 갱신
 
-작업 결과로 화면에 영향이 있다면 `SCREEN_STATUS.md`를 반드시 갱신한다:
+작업 결과로 화면에 영향이 있다면 `SCREEN_STATUS.md`와 `PROJECT_STATUS.md`를 반드시 갱신한다:
 
 - 신규 화면 추가 (라우트 + 상태 + 한 줄 설명)
 - 기존 화면의 구현 범위 확장 (예: "스켈레톤만" → "데이터 fetch 연결 완료")
