@@ -10,7 +10,7 @@ import type {
   IJudgeResponse,
   IOpponentProgress,
 } from "@/app/features/editor/types";
-import { useAnonymousAuth } from "@/app/shared/hooks/useAnonymousAuth";
+import { useAutoAnonymousAuth } from "@/app/shared/hooks/useAutoAnonymousAuth";
 import MatchStatusBar from "@/app/features/match/components/MatchStatusBar";
 import SoundToggle from "@/app/features/match/components/SoundToggle";
 import { useMatchRealtime } from "@/app/features/match/hooks/useMatchRealtime";
@@ -35,7 +35,7 @@ interface IPlayPageProps {
 
 export default function PlayPage({ params }: IPlayPageProps) {
   const { matchId } = use(params);
-  const { userId, isLoading: isAuthLoading } = useAnonymousAuth();
+  const { userId, isLoading: isAuthLoading } = useAutoAnonymousAuth();
   const [problem, setProblem] = useState<IProblem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
