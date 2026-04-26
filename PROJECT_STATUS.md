@@ -7,7 +7,7 @@
 
 ## 한 줄 진단
 
-대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 42 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR `fix/db-rls-and-seed`). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A까지 부트스트랩 완료, OAuth/middleware 가드는 PR #7-B/C 예정.
+대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A까지 부트스트랩 완료, OAuth/middleware 가드는 PR #7-B/C 예정.
 
 ---
 
@@ -73,7 +73,7 @@ app/
 │   ├── components/QueryProvider  ✅  staleTime 60s + retry 1 글로벌
 │   ├── hooks/useAuth             ✅  단일 진입점 (React Query + fallback upsert)
 │   ├── hooks/useAutoAnonymousAuth ✅  /play 진입 시 자동 익명 가입 (⚠️ isMounted 가드 미적용)
-│   ├── lib/supabase/{client,server}.ts ✅  브라우저/서버 클라이언트 분리 (모두 anon 키)
+│   ├── lib/supabase/{client,server,service}.ts ✅  브라우저/서버(anon) + service-role(server-only)
 │   ├── stores/useSoundStore.ts   ✅  Zustand 사운드 토글
 │   └── utils/isAnonymousUser.ts  ✅  객체 매개변수 컨벤션 적용
 ├── layout.tsx                    ✅  QueryProvider + Sonner Toaster
@@ -123,8 +123,8 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 | `app/page.tsx` 메인 화면   | 🚨   | Next.js 기본 템플릿. PR #7-C 또는 별도 PR로 재작성 필요                            |
 | `app/(auth)/login/`        | ⏳   | PR #7-B 예정 (`signInWithOAuth` + `linkIdentity` 분기)                             |
 | `app/(auth)/callback/`     | ⏳   | PR #7-B 예정 (`exchangeCodeForSession` + 서버 측 닉네임 동기화)                    |
-| `app/(main)/dashboard/`    | ⏳   | PR #8 예정 (친구 초대 매치 리스트)                                                 |
-| `app/(main)/profile/[id]/` | ⏳   | PR #9 예정 (프로필 보기 + 닉네임 편집)                                             |
+| `app/(main)/dashboard/`    | ⏳   | Step 3 매칭 PR 예정 (친구 초대 매치 리스트)                                        |
+| `app/(main)/profile/[id]/` | ⏳   | Step 3 프로필 PR 예정 (프로필 보기 + 닉네임 편집)                                  |
 | `app/(main)/leaderboard/`  | ⏳   | 명세 미정 (장기)                                                                   |
 | `app/(main)/result/[id]/`  | ⏳   | 빈 디렉토리. 결과는 `/play` 페이지 인라인 (분리 여부 미정)                         |
 | `app/api/ai/`              | ⏳   | 빈 디렉토리. Gemini 코드 리뷰 API 미구현                                           |
@@ -164,7 +164,7 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 
 - `useEffect` 내부에서 `await` 후 `setUserId`/`setIsLoading` 호출 — unmount 후 setState 경고 가능성
 - CODE_CONVENTIONS의 "async + setState 가드 패턴" 위반
-- 후속 보강 PR에 포함 예정
+- **다음 작업**: 후속 보강 PR (이번 sprint 1순위)에 포함 — `useAuth` retry 정책 + service client 싱글턴(I-4) + test_cases UNIQUE 제약(I-5)도 함께
 
 ### 5. ⚠️ Env — 일관성 깨진 키 이름
 
@@ -185,9 +185,9 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 
 | 테이블               | rows | 정책 수 | 주요 FK                                                          |
 | -------------------- | ---- | ------- | ---------------------------------------------------------------- |
-| `profiles`           | 1    | 3       | `id → auth.users.id`                                             |
+| `profiles`           | 4    | 3       | `id → auth.users.id`                                             |
 | `problems`           | 9    | 1       | —                                                                |
-| `test_cases`         | 42   | 1       | `problem_id → problems.id`                                       |
+| `test_cases`         | 43   | 1       | `problem_id → problems.id`                                       |
 | `matches`            | 0    | 4       | `winner_id`, `host_id → profiles.id`, `problem_id → problems.id` |
 | `match_participants` | 0    | 3       | `match_id → matches.id`, `user_id → profiles.id`                 |
 | `submissions`        | 0    | 2       | `match_id → matches.id`, `user_id → profiles.id`                 |
@@ -202,7 +202,7 @@ profiles            → public_read (true) / self_insert (id=uid) / self_update 
 submissions         → match_participant_read / self_insert (user_id=uid)
 problems            → public_read (SELECT, true)
 test_cases          → visible_read (SELECT, is_hidden = false)
-ai_reviews          → self_read (SELECT, EXISTS submission JOIN auth.uid())
+ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (SELECT id FROM submissions WHERE user_id = (SELECT auth.uid())))
 ```
 
 ### 트리거
@@ -234,7 +234,7 @@ ai_reviews          → self_read (SELECT, EXISTS submission JOIN auth.uid())
 | `20260425_pr5_review_index_cleanup.sql`    | UNIQUE 제약과 중복된 인덱스 제거 (Code Reviewer 피드백)           |
 | `20260425_pr7a_profiles_insert_policy.sql` | profiles `self_insert` 정책 (Code Reviewer Critical fix)          |
 | `20260426_rls_problems_test_cases.sql`     | problems/test_cases/ai_reviews RLS 3종 (히든은 service role 전용) |
-| `20260426_seed_problems.sql`               | 9 problems + 42 test_cases 멱등 시드 (SoT 확보)                   |
+| `20260426_seed_problems.sql`               | 9 problems + 43 test_cases 멱등 시드 (SoT 확보)                   |
 
 ---
 
@@ -270,9 +270,10 @@ ai_reviews          → self_read (SELECT, EXISTS submission JOIN auth.uid())
 ## 마지막 갱신
 
 - **일자**: 2026-04-26
-- **작성 시점**: PR `fix/db-rls-and-seed` 작성 직후 (RLS 3종 + 시드 SoT + service role 도입)
-- **다음 액션 후보**:
-  1. PR `fix/db-rls-and-seed` 머지 + 사용자가 `.env`에 `SUPABASE_SERVICE_ROLE_KEY` 추가 + Supabase SQL Editor에서 두 마이그레이션 수동 적용
-  2. 후속 보강 PR — `useAutoAnonymousAuth isMounted 가드` + `useAuth retry 정책` 명시
-  3. PR #7-B 시작 (OAuth 로그인 — `signInWithOAuth` + `linkIdentity` 분기)
-  4. `app/page.tsx` 메인 화면 재작성 (Next.js 기본 템플릿 잔존)
+- **시점**: PR #8 (`fix/db-rls-and-seed`) dev 머지 완료 후
+- **다음 액션 순서**:
+  1. **후속 보강 PR** (현재 sprint 1순위) — `useAutoAnonymousAuth isMounted` 가드 + `useAuth retry` 정책 + service client 싱글턴(I-4) + test_cases UNIQUE 제약(I-5)
+  2. **PR #7-B** — `/login` + `/auth/callback` (`signInWithOAuth` + `linkIdentity` 분기, 서버 측 닉네임 동기화)
+  3. **PR #7-C** — middleware 라우트 가드 + AuthListener + UserMenu + **`app/page.tsx` 메인 화면 재작성** (PR #7-C에 끼워넣기)
+  4. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + invite_token 흐름
+  5. **Step 3 프로필 PR** — `/profile/[userId]` + 닉네임 편집
