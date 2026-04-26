@@ -159,12 +159,12 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 - PR #7-B에서 `/login`을 만들어도 진입할 메인 화면이 없는 어색한 동선
 - PR 우선순위 재검토 권장
 
-### 4. ✅ Resolved — `useAutoAnonymousAuth` isMounted 가드 + 후속 보강 (PR `chore/step3-followup-fixes`)
+### 4. ✅ Resolved — `useAutoAnonymousAuth` isMounted 가드 + 후속 보강 (PR #9 머지 완료)
 
 - `useAutoAnonymousAuth`에 `let isMounted = true;` + cleanup + 모든 await 직후 가드 적용
-- `useAuth`에 `retry` 함수 명시 (4xx 즉시 fail / 그 외 1회 재시도)
-- `app/shared/lib/supabase/service.ts` 모듈 레벨 lazy 싱글턴 + `submit/route.ts` ENV fail-fast try/catch
-- `20260427_test_cases_unique_constraint.sql`로 `(problem_id, input, is_hidden)` UNIQUE 제약 + `is_hidden NOT NULL` 보강 (DO 블록 멱등)
+- `useAuth`에 `retry` 함수 명시 (4xx 즉시 fail / 그 외 1회 재시도) + queryFn에 explicit `throw` 추가 → retry 정책이 실효적으로 동작
+- `app/shared/lib/supabase/service.ts` 모듈 레벨 lazy 싱글턴 + `SupabaseClient` 명시 타입 + `submit/route.ts` ENV fail-fast try/catch + 에러 메시지 차별화 (`E_JUDGE0` / `E_SERVICE`)
+- `20260427_test_cases_unique_constraint.sql`로 `(problem_id, input, is_hidden)` UNIQUE 제약 + `is_hidden NOT NULL` 보강 (DO 블록 + `IF (NOT) EXISTS` 가드로 멱등)
 
 ### 5. ⚠️ Env — 일관성 깨진 키 이름
 
@@ -183,15 +183,15 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 
 ### 테이블 (7개, 모두 RLS enabled)
 
-| 테이블               | rows | 정책 수 | 주요 FK                                                          |
-| -------------------- | ---- | ------- | ---------------------------------------------------------------- |
-| `profiles`           | 4    | 3       | `id → auth.users.id`                                             |
-| `problems`           | 9    | 1       | —                                                                |
-| `test_cases`         | 43   | 1       | `problem_id → problems.id`                                       |
-| `matches`            | 0    | 4       | `winner_id`, `host_id → profiles.id`, `problem_id → problems.id` |
-| `match_participants` | 0    | 3       | `match_id → matches.id`, `user_id → profiles.id`                 |
-| `submissions`        | 0    | 2       | `match_id → matches.id`, `user_id → profiles.id`                 |
-| `ai_reviews`         | 0    | 1       | `submission_id → submissions.id`                                 |
+| 테이블               | rows | 정책 수 | 주요 FK                                                                                          |
+| -------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------ |
+| `profiles`           | 4    | 3       | `id → auth.users.id`                                                                             |
+| `problems`           | 9    | 1       | —                                                                                                |
+| `test_cases`         | 43   | 1       | `problem_id → problems.id` (`is_hidden` NOT NULL + (problem_id, input, is_hidden) UNIQUE, PR #9) |
+| `matches`            | 0    | 4       | `winner_id`, `host_id → profiles.id`, `problem_id → problems.id`                                 |
+| `match_participants` | 0    | 3       | `match_id → matches.id`, `user_id → profiles.id`                                                 |
+| `submissions`        | 0    | 2       | `match_id → matches.id`, `user_id → profiles.id`                                                 |
+| `ai_reviews`         | 0    | 1       | `submission_id → submissions.id`                                                                 |
 
 ### RLS 정책 (15개)
 
@@ -271,10 +271,10 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 ## 마지막 갱신
 
 - **일자**: 2026-04-26
-- **시점**: PR `chore/step3-followup-fixes` 작성 직후
+- **시점**: PR #9 (`chore/step3-followup-fixes`) dev 머지 완료 + 외부 리뷰 fix 5건 반영
 - **다음 액션 순서**:
   1. **PR #7-B** — `/login` + `/auth/callback` (`signInWithOAuth` + `linkIdentity` 분기, 서버 측 닉네임 동기화)
   2. **PR #7-C** — middleware 라우트 가드 + AuthListener + UserMenu + **`app/page.tsx` 메인 화면 재작성** (PR #7-C에 끼워넣기)
   3. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + invite_token 흐름
   4. **Step 3 프로필 PR** — `/profile/[userId]` + 닉네임 편집
-  5. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터
+  5. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터 (PR #9의 UNIQUE 제약으로 사전 작업 완료)

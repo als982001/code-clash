@@ -58,8 +58,8 @@
 ## 마지막 갱신
 
 - **일자**: 2026-04-26
-- **PR**: `chore/step3-followup-fixes` 작성 직후 (PR #8 머지 후속)
-- **변경 요약**: 후속 보강 — isMounted 가드 / useAuth retry / service singleton + fail-fast / test_cases UNIQUE
+- **PR**: #9 (`chore/step3-followup-fixes`) dev 머지 완료
+- **변경 요약**: 후속 보강 — isMounted 가드 / useAuth retry + queryFn explicit throw / service singleton + fail-fast + 명시 타입 / test_cases UNIQUE + is_hidden NOT NULL (DO 블록 멱등) / ENV 에러 메시지 차별화 (E_JUDGE0 / E_SERVICE)
 - **다음 PR 예정 순서**:
   1. **PR #7-B** — `/login` + `/auth/callback` (OAuth + linkIdentity)
   2. **PR #7-C** — middleware 가드 + AuthListener + UserMenu + **메인 화면 재작성**
