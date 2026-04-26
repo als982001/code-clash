@@ -164,7 +164,7 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 - `useAutoAnonymousAuth`에 `let isMounted = true;` + cleanup + 모든 await 직후 가드 적용
 - `useAuth`에 `retry` 함수 명시 (4xx 즉시 fail / 그 외 1회 재시도)
 - `app/shared/lib/supabase/service.ts` 모듈 레벨 lazy 싱글턴 + `submit/route.ts` ENV fail-fast try/catch
-- `20260427_test_cases_unique_constraint.sql`로 `(problem_id, input, is_hidden)` UNIQUE 제약 추가
+- `20260427_test_cases_unique_constraint.sql`로 `(problem_id, input, is_hidden)` UNIQUE 제약 + `is_hidden NOT NULL` 보강 (DO 블록 멱등)
 
 ### 5. ⚠️ Env — 일관성 깨진 키 이름
 
@@ -224,18 +224,18 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마이그레이션 이력 (`supabase/migrations/`)
 
-| 파일                                        | 내용                                                                         |
-| ------------------------------------------- | ---------------------------------------------------------------------------- |
-| `20260412_minimal_rls.sql`                  | 최소 RLS (matches/match_participants/submissions)                            |
-| `20260425_handle_new_user_trigger.sql`      | profiles 자동 생성 트리거 + 함수                                             |
-| `20260425_backfill_missing_profiles.sql`    | 누락 익명 유저 백필                                                          |
-| `20260425_profiles_rls_policies.sql`        | profiles `public_read` + `self_update`                                       |
-| `20260425_match_invite_columns.sql`         | matches invite 컬럼 3종 + 부분 인덱스                                        |
-| `20260425_pr5_review_index_cleanup.sql`     | UNIQUE 제약과 중복된 인덱스 제거 (Code Reviewer 피드백)                      |
-| `20260425_pr7a_profiles_insert_policy.sql`  | profiles `self_insert` 정책 (Code Reviewer Critical fix)                     |
-| `20260426_rls_problems_test_cases.sql`      | problems/test_cases/ai_reviews RLS 3종 (히든은 service role 전용)            |
-| `20260426_seed_problems.sql`                | 9 problems + 43 test_cases 멱등 시드 (SoT 확보)                              |
-| `20260427_test_cases_unique_constraint.sql` | `test_cases (problem_id, input, is_hidden)` UNIQUE 제약 추가 (I-5 follow-up) |
+| 파일                                        | 내용                                                                                                         |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `20260412_minimal_rls.sql`                  | 최소 RLS (matches/match_participants/submissions)                                                            |
+| `20260425_handle_new_user_trigger.sql`      | profiles 자동 생성 트리거 + 함수                                                                             |
+| `20260425_backfill_missing_profiles.sql`    | 누락 익명 유저 백필                                                                                          |
+| `20260425_profiles_rls_policies.sql`        | profiles `public_read` + `self_update`                                                                       |
+| `20260425_match_invite_columns.sql`         | matches invite 컬럼 3종 + 부분 인덱스                                                                        |
+| `20260425_pr5_review_index_cleanup.sql`     | UNIQUE 제약과 중복된 인덱스 제거 (Code Reviewer 피드백)                                                      |
+| `20260425_pr7a_profiles_insert_policy.sql`  | profiles `self_insert` 정책 (Code Reviewer Critical fix)                                                     |
+| `20260426_rls_problems_test_cases.sql`      | problems/test_cases/ai_reviews RLS 3종 (히든은 service role 전용)                                            |
+| `20260426_seed_problems.sql`                | 9 problems + 43 test_cases 멱등 시드 (SoT 확보)                                                              |
+| `20260427_test_cases_unique_constraint.sql` | `test_cases (problem_id, input, is_hidden)` UNIQUE 제약 + `is_hidden NOT NULL` (DO 블록 멱등, I-5 follow-up) |
 
 ---
 
