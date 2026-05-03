@@ -7,7 +7,7 @@
 
 ## 한 줄 진단
 
-대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A까지 부트스트랩 완료, OAuth/middleware 가드는 PR #7-B/C 예정.
+대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + **PR #7-B에서 `/login`/`/auth/callback` 구현 완료(코드 작성, 커밋 전)** — OAuth(Google/GitHub) + `linkIdentity` 익명 승격 + 닉네임 동기화(1·2단 fallback). middleware 가드 / AuthListener / UserMenu / 메인 화면은 PR #7-C 예정.
 
 ---
 
@@ -54,8 +54,12 @@ app/
 │   ├── leaderboard/              ⏳  빈 디렉토리 (장기)
 │   └── profile/[userId]/         ⏳  빈 디렉토리 (PR #9 예정)
 ├── (auth)/
-│   ├── login/                    ⏳  빈 디렉토리 (PR #7-B 예정)
-│   └── callback/                 ⏳  빈 디렉토리 (PR #7-B 예정)
+│   ├── layout.tsx                ✅  풀스크린 레이아웃 (PR #7-B)
+│   └── login/
+│       ├── page.tsx              ✅  OAuth 2종 + 게스트 시작 (PR #7-B)
+│       ├── _components/{OAuthButton,GuestStartButton}.tsx ✅  PR #7-B
+│       └── _utils/buildOAuthRedirect.ts ✅  PR #7-B
+├── auth/callback/route.ts        ✅  exchangeCodeForSession + 닉네임 동기화, runtime=nodejs (PR #7-B)
 ├── api/
 │   ├── judge/route.ts            ✅  Judge0 호출 (테스트 케이스별 결과 반환)
 │   ├── match/route.ts            ✅  매치 생성 + 호스트 등록
@@ -118,21 +122,21 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 
 ## 부분 구현 / 스텁 영역 🔄 ⏳
 
-| 영역                       | 마커 | 비고                                                                  |
-| -------------------------- | ---- | --------------------------------------------------------------------- |
-| `app/page.tsx` 메인 화면   | 🚨   | Next.js 기본 템플릿. PR #7-C 또는 별도 PR로 재작성 필요               |
-| `app/(auth)/login/`        | ⏳   | PR #7-B 예정 (`signInWithOAuth` + `linkIdentity` 분기)                |
-| `app/(auth)/callback/`     | ⏳   | PR #7-B 예정 (`exchangeCodeForSession` + 서버 측 닉네임 동기화)       |
-| `app/(main)/dashboard/`    | ⏳   | Step 3 매칭 PR 예정 (친구 초대 매치 리스트)                           |
-| `app/(main)/profile/[id]/` | ⏳   | Step 3 프로필 PR 예정 (프로필 보기 + 닉네임 편집)                     |
-| `app/(main)/leaderboard/`  | ⏳   | 명세 미정 (장기)                                                      |
-| `app/(main)/result/[id]/`  | ⏳   | 빈 디렉토리. 결과는 `/play` 페이지 인라인 (분리 여부 미정)            |
-| `app/api/ai/`              | ⏳   | 빈 디렉토리. Gemini 코드 리뷰 API 미구현                              |
-| `app/features/review/`     | ⏳   | 빈 디렉토리. AI 리뷰 UI 미구현                                        |
-| 라우트 가드 (middleware)   | ⏳   | 현재 middleware는 세션 쿠키 갱신만 함 — 인증 분기 없음 (PR #7-C 예정) |
-| AuthListener (전역)        | ⏳   | `onAuthStateChange` 단일 구독 미구현 (PR #7-C 예정)                   |
-| UserMenu                   | ⏳   | 로그인된 유저 드롭다운 메뉴 미구현 (PR #7-C 예정)                     |
-| Edge Functions             | ⏳   | 0개 (`mcp__supabase__list_edge_functions` 결과 비어있음)              |
+| 영역                       | 마커 | 비고                                                                          |
+| -------------------------- | ---- | ----------------------------------------------------------------------------- |
+| `app/page.tsx` 메인 화면   | 🚨   | Next.js 기본 템플릿. PR #7-C 또는 별도 PR로 재작성 필요                       |
+| `app/(auth)/login/`        | ✅   | PR #7-B 완료 (`signInWithOAuth` + `linkIdentity` 분기, 게스트 시작 포함)      |
+| `app/auth/callback/`       | ✅   | PR #7-B 완료 (`exchangeCodeForSession` + 닉네임/아바타 동기화 1·2단 fallback) |
+| `app/(main)/dashboard/`    | ⏳   | Step 3 매칭 PR 예정 (친구 초대 매치 리스트)                                   |
+| `app/(main)/profile/[id]/` | ⏳   | Step 3 프로필 PR 예정 (프로필 보기 + 닉네임 편집)                             |
+| `app/(main)/leaderboard/`  | ⏳   | 명세 미정 (장기)                                                              |
+| `app/(main)/result/[id]/`  | ⏳   | 빈 디렉토리. 결과는 `/play` 페이지 인라인 (분리 여부 미정)                    |
+| `app/api/ai/`              | ⏳   | 빈 디렉토리. Gemini 코드 리뷰 API 미구현                                      |
+| `app/features/review/`     | ⏳   | 빈 디렉토리. AI 리뷰 UI 미구현                                                |
+| 라우트 가드 (middleware)   | ⏳   | 현재 middleware는 세션 쿠키 갱신만 함 — 인증 분기 없음 (PR #7-C 예정)         |
+| AuthListener (전역)        | ⏳   | `onAuthStateChange` 단일 구독 미구현 (PR #7-C 예정)                           |
+| UserMenu                   | ⏳   | 로그인된 유저 드롭다운 메뉴 미구현 (PR #7-C 예정)                             |
+| Edge Functions             | ⏳   | 0개 (`mcp__supabase__list_edge_functions` 결과 비어있음)                      |
 
 ---
 
@@ -270,11 +274,11 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
-- **일자**: 2026-04-26
-- **시점**: PR #9 (`chore/step3-followup-fixes`) dev 머지 완료 + 외부 리뷰 fix 5건 반영
+- **일자**: 2026-05-03
+- **시점**: PR #7-B (`feature/login-oauth-callback`) 코드 작성 완료 (Code Reviewer 진행 중, 커밋/PR 생성 전)
 - **다음 액션 순서**:
-  1. **PR #7-B** — `/login` + `/auth/callback` (`signInWithOAuth` + `linkIdentity` 분기, 서버 측 닉네임 동기화)
-  2. **PR #7-C** — middleware 라우트 가드 + AuthListener + UserMenu + **`app/page.tsx` 메인 화면 재작성** (PR #7-C에 끼워넣기)
-  3. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + invite_token 흐름
-  4. **Step 3 프로필 PR** — `/profile/[userId]` + 닉네임 편집
+  1. **PR #7-B 마무리** — Code Reviewer 결과 반영 후 커밋 + PR 생성 + 머지
+  2. **PR #7-C** — middleware 라우트 가드 + AuthListener + UserMenu + **`app/page.tsx` 메인 화면 재작성** + `GuestStartButton`의 임시 invalidate 호출 제거
+  3. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + `POST /api/match/invite` + `/invite/[token]` + invite_token 흐름
+  4. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달
   5. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터 (PR #9의 UNIQUE 제약으로 사전 작업 완료)
