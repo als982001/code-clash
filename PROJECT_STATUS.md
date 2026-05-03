@@ -7,7 +7,7 @@
 
 ## 한 줄 진단
 
-대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + **PR #7-B에서 `/login`/`/auth/callback` 구현 완료(코드 작성, 커밋 전)** — OAuth(Google/GitHub) + `linkIdentity` 익명 승격 + 닉네임 동기화(1·2단 fallback). middleware 가드 / AuthListener / UserMenu / 메인 화면은 PR #7-C 예정.
+대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B에서 `/login`/`/auth/callback` 구현 완료 — OAuth(Google/GitHub) + 닉네임 동기화(1·2단 fallback). 랭킹/경쟁 게임 특성상 익명 게스트 플로우는 `feature/remove-guest-flow`에서 전면 제거 (`GuestStartButton`/`useAutoAnonymousAuth`/`isAnonymousUser` 삭제, `linkIdentity` 분기 제거). `/play/[matchId]`는 비로그인 시 `/login` redirect 임시 적용 — middleware 가드 / AuthListener / UserMenu / 메인 화면은 PR #7-C 예정.
 
 ---
 
@@ -56,8 +56,8 @@ app/
 ├── (auth)/
 │   ├── layout.tsx                ✅  풀스크린 레이아웃 (PR #7-B)
 │   └── login/
-│       ├── page.tsx              ✅  OAuth 2종 + 게스트 시작 (PR #7-B)
-│       ├── _components/{OAuthButton,GuestStartButton}.tsx ✅  PR #7-B
+│       ├── page.tsx              ✅  OAuth 2종 (PR #7-B, 게스트 플로우 제거)
+│       ├── _components/OAuthButton.tsx ✅  signInWithOAuth 단일 경로 (PR #7-B)
 │       └── _utils/buildOAuthRedirect.ts ✅  PR #7-B
 ├── auth/callback/route.ts        ✅  exchangeCodeForSession + 닉네임 동기화, runtime=nodejs (PR #7-B)
 ├── api/
@@ -76,10 +76,8 @@ app/
 ├── shared/
 │   ├── components/QueryProvider  ✅  staleTime 60s + retry 1 글로벌
 │   ├── hooks/useAuth             ✅  단일 진입점 (React Query + fallback upsert)
-│   ├── hooks/useAutoAnonymousAuth ✅  /play 진입 시 자동 익명 가입 (isMounted 가드 적용 완료)
 │   ├── lib/supabase/{client,server,service}.ts ✅  브라우저/서버(anon) + service-role(server-only)
-│   ├── stores/useSoundStore.ts   ✅  Zustand 사운드 토글
-│   └── utils/isAnonymousUser.ts  ✅  객체 매개변수 컨벤션 적용
+│   └── stores/useSoundStore.ts   ✅  Zustand 사운드 토글
 ├── layout.tsx                    ✅  QueryProvider + Sonner Toaster
 └── page.tsx                      🚨  Next.js create-next-app 기본 템플릿 그대로
 
@@ -99,12 +97,13 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 - 멱등성: 동일 유저의 중복 제출 시 기존 submission 반환
 - 점수 산출: `(passed/total × 1000) + ((Tmax-Tused)/Tmax × 500)` (서버 단독, anti-cheat)
 
-### 인증 인프라 (Step 3 — PR #6 + #7-A)
+### 인증 인프라 (Step 3 — PR #6 + #7-A + #7-B)
 
-- 익명 자동 가입 (`/play` 진입 즉시 `signInAnonymously`)
+- OAuth(Google/GitHub) 로그인 (`/login`) + `/auth/callback`에서 `exchangeCodeForSession` + 닉네임/아바타 동기화
 - `auth.users` AFTER INSERT 트리거 → `public.profiles` 자동 생성 (best-effort)
 - `useAuth` 단일 진입점 + 트리거 실패 대비 fallback upsert
 - `profiles` RLS 3종 (`public_read` + `self_update` + `self_insert`)
+- 게스트(익명) 로그인 플로우는 랭킹/경쟁 게임 부적합으로 `feature/remove-guest-flow`에서 제거. `/play/[matchId]`는 비로그인 시 임시 클라이언트 redirect (PR #7-C에서 미들웨어로 대체)
 
 ### 실시간 (Supabase Realtime broadcast)
 
@@ -122,21 +121,21 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 
 ## 부분 구현 / 스텁 영역 🔄 ⏳
 
-| 영역                       | 마커 | 비고                                                                          |
-| -------------------------- | ---- | ----------------------------------------------------------------------------- |
-| `app/page.tsx` 메인 화면   | 🚨   | Next.js 기본 템플릿. PR #7-C 또는 별도 PR로 재작성 필요                       |
-| `app/(auth)/login/`        | ✅   | PR #7-B 완료 (`signInWithOAuth` + `linkIdentity` 분기, 게스트 시작 포함)      |
-| `app/auth/callback/`       | ✅   | PR #7-B 완료 (`exchangeCodeForSession` + 닉네임/아바타 동기화 1·2단 fallback) |
-| `app/(main)/dashboard/`    | ⏳   | Step 3 매칭 PR 예정 (친구 초대 매치 리스트)                                   |
-| `app/(main)/profile/[id]/` | ⏳   | Step 3 프로필 PR 예정 (프로필 보기 + 닉네임 편집)                             |
-| `app/(main)/leaderboard/`  | ⏳   | 명세 미정 (장기)                                                              |
-| `app/(main)/result/[id]/`  | ⏳   | 빈 디렉토리. 결과는 `/play` 페이지 인라인 (분리 여부 미정)                    |
-| `app/api/ai/`              | ⏳   | 빈 디렉토리. Gemini 코드 리뷰 API 미구현                                      |
-| `app/features/review/`     | ⏳   | 빈 디렉토리. AI 리뷰 UI 미구현                                                |
-| 라우트 가드 (middleware)   | ⏳   | 현재 middleware는 세션 쿠키 갱신만 함 — 인증 분기 없음 (PR #7-C 예정)         |
-| AuthListener (전역)        | ⏳   | `onAuthStateChange` 단일 구독 미구현 (PR #7-C 예정)                           |
-| UserMenu                   | ⏳   | 로그인된 유저 드롭다운 메뉴 미구현 (PR #7-C 예정)                             |
-| Edge Functions             | ⏳   | 0개 (`mcp__supabase__list_edge_functions` 결과 비어있음)                      |
+| 영역                       | 마커 | 비고                                                                                           |
+| -------------------------- | ---- | ---------------------------------------------------------------------------------------------- |
+| `app/page.tsx` 메인 화면   | 🚨   | Next.js 기본 템플릿. PR #7-C 또는 별도 PR로 재작성 필요                                        |
+| `app/(auth)/login/`        | ✅   | PR #7-B 완료 (`signInWithOAuth` 단일 경로, 게스트 시작은 `feature/remove-guest-flow`에서 제거) |
+| `app/auth/callback/`       | ✅   | PR #7-B 완료 (`exchangeCodeForSession` + 닉네임/아바타 동기화 1·2단 fallback)                  |
+| `app/(main)/dashboard/`    | ⏳   | Step 3 매칭 PR 예정 (친구 초대 매치 리스트)                                                    |
+| `app/(main)/profile/[id]/` | ⏳   | Step 3 프로필 PR 예정 (프로필 보기 + 닉네임 편집)                                              |
+| `app/(main)/leaderboard/`  | ⏳   | 명세 미정 (장기)                                                                               |
+| `app/(main)/result/[id]/`  | ⏳   | 빈 디렉토리. 결과는 `/play` 페이지 인라인 (분리 여부 미정)                                     |
+| `app/api/ai/`              | ⏳   | 빈 디렉토리. Gemini 코드 리뷰 API 미구현                                                       |
+| `app/features/review/`     | ⏳   | 빈 디렉토리. AI 리뷰 UI 미구현                                                                 |
+| 라우트 가드 (middleware)   | ⏳   | 현재 middleware는 세션 쿠키 갱신만 함 — 인증 분기 없음 (PR #7-C 예정)                          |
+| AuthListener (전역)        | ⏳   | `onAuthStateChange` 단일 구독 미구현 (PR #7-C 예정)                                            |
+| UserMenu                   | ⏳   | 로그인된 유저 드롭다운 메뉴 미구현 (PR #7-C 예정)                                              |
+| Edge Functions             | ⏳   | 0개 (`mcp__supabase__list_edge_functions` 결과 비어있음)                                       |
 
 ---
 
@@ -163,12 +162,12 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 - PR #7-B에서 `/login`을 만들어도 진입할 메인 화면이 없는 어색한 동선
 - PR 우선순위 재검토 권장
 
-### 4. ✅ Resolved — `useAutoAnonymousAuth` isMounted 가드 + 후속 보강 (PR #9 머지 완료)
+### 4. ✅ Resolved — 후속 보강 (PR #9 머지 완료)
 
-- `useAutoAnonymousAuth`에 `let isMounted = true;` + cleanup + 모든 await 직후 가드 적용
 - `useAuth`에 `retry` 함수 명시 (4xx 즉시 fail / 그 외 1회 재시도) + queryFn에 explicit `throw` 추가 → retry 정책이 실효적으로 동작
 - `app/shared/lib/supabase/service.ts` 모듈 레벨 lazy 싱글턴 + `SupabaseClient` 명시 타입 + `submit/route.ts` ENV fail-fast try/catch + 에러 메시지 차별화 (`E_JUDGE0` / `E_SERVICE`)
 - `20260427_test_cases_unique_constraint.sql`로 `(problem_id, input, is_hidden)` UNIQUE 제약 + `is_hidden NOT NULL` 보강 (DO 블록 + `IF (NOT) EXISTS` 가드로 멱등)
+- (`useAutoAnonymousAuth`는 `feature/remove-guest-flow`에서 파일째 삭제되어 isMounted 가드 항목 자체가 N/A)
 
 ### 5. ⚠️ Env — 일관성 깨진 키 이름
 
@@ -275,10 +274,11 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 ## 마지막 갱신
 
 - **일자**: 2026-05-03
-- **시점**: PR #7-B (`feature/login-oauth-callback`) 코드 작성 완료 (Code Reviewer 진행 중, 커밋/PR 생성 전)
+- **시점**: `feature/remove-guest-flow` 코드 작성 완료 (Code Reviewer 진행 전)
+- **변경 요약**: 게스트(익명) 로그인 플로우 전면 제거. `GuestStartButton` / `useAutoAnonymousAuth` / `isAnonymousUser` 삭제, `useAuth.isAnonymous` 반환 제거, `OAuthButton`의 `linkIdentity` 분기 + 디버그 로그 제거, `/play/[matchId]`는 비로그인 시 `/login` redirect (임시, PR #7-C에서 미들웨어로 대체).
 - **다음 액션 순서**:
-  1. **PR #7-B 마무리** — Code Reviewer 결과 반영 후 커밋 + PR 생성 + 머지
-  2. **PR #7-C** — middleware 라우트 가드 + AuthListener + UserMenu + **`app/page.tsx` 메인 화면 재작성** + `GuestStartButton`의 임시 invalidate 호출 제거
+  1. **`feature/remove-guest-flow` 마무리** — Code Reviewer 결과 반영 후 커밋 + PR 생성 + 머지 + Supabase 토글 OFF + 익명 유저 삭제
+  2. **PR #7-C** — middleware 라우트 가드 + AuthListener + UserMenu + **`app/page.tsx` 메인 화면 재작성**
   3. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + `POST /api/match/invite` + `/invite/[token]` + invite_token 흐름
   4. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달
   5. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터 (PR #9의 UNIQUE 제약으로 사전 작업 완료)

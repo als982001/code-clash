@@ -7,7 +7,6 @@ import { toast } from "sonner";
 
 import { buildOAuthRedirect } from "@/app/(auth)/login/_utils/buildOAuthRedirect";
 import { createClient } from "@/app/shared/lib/supabase/client";
-import { isAnonymousUser } from "@/app/shared/utils/isAnonymousUser";
 import { Button } from "@/components/ui/button";
 
 interface IOAuthButtonProps {
@@ -86,47 +85,7 @@ export default function OAuthButton({ provider, nextPath }: IOAuthButtonProps) {
 
     const { redirectTo } = buildOAuthRedirect({ next: nextPath });
 
-    let currentUser: Awaited<
-      ReturnType<typeof supabase.auth.getUser>
-    >["data"]["user"] = null;
-
     try {
-      const { data } = await supabase.auth.getUser();
-
-      console.log("data", data);
-
-      const { user } = data;
-
-      console.log("user", user);
-
-      console.log("isMountedRef.current", isMountedRef.current);
-
-      if (!isMountedRef.current) return;
-
-      currentUser = user;
-    } catch {
-      // AuthSessionMissingError 등 비로그인 상태 → 일반 OAuth 분기로 fallthrough
-      currentUser = null;
-    }
-
-    const { isAnonymous } = isAnonymousUser({ user: currentUser });
-
-    try {
-      if (isAnonymous) {
-        const { error } = await supabase.auth.linkIdentity({
-          provider,
-          options: { redirectTo },
-        });
-
-        if (!isMountedRef.current) return;
-
-        if (error) {
-          throw error;
-        }
-
-        return;
-      }
-
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: { redirectTo },
