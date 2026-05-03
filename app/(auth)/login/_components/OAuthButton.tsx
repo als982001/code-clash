@@ -1,0 +1,197 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+import { buildOAuthRedirect } from "@/app/(auth)/login/_utils/buildOAuthRedirect";
+import { createClient } from "@/app/shared/lib/supabase/client";
+import { isAnonymousUser } from "@/app/shared/utils/isAnonymousUser";
+import { Button } from "@/components/ui/button";
+
+interface IOAuthButtonProps {
+  provider: "google" | "github";
+  nextPath: string | null;
+}
+
+const PROVIDER_LABEL: Record<IOAuthButtonProps["provider"], string> = {
+  google: "Google로 계속하기",
+  github: "GitHub로 계속하기",
+};
+
+function GitHubIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+    </svg>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 48 48"
+      width="16"
+      height="16"
+      aria-hidden="true"
+    >
+      <path
+        fill="#FFC107"
+        d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
+      />
+      <path
+        fill="#FF3D00"
+        d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
+      />
+      <path
+        fill="#4CAF50"
+        d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
+      />
+      <path
+        fill="#1976D2"
+        d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571.001-.001.002-.001.003-.002l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
+      />
+    </svg>
+  );
+}
+
+export default function OAuthButton({ provider, nextPath }: IOAuthButtonProps) {
+  const [isPending, setIsPending] = useState(false);
+  const isMountedRef = useRef(true);
+
+  const { client: supabase } = useMemo(() => {
+    return createClient();
+  }, []);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const handleClick = async () => {
+    if (isPending) return;
+
+    setIsPending(true);
+
+    const { redirectTo } = buildOAuthRedirect({ next: nextPath });
+
+    let currentUser: Awaited<
+      ReturnType<typeof supabase.auth.getUser>
+    >["data"]["user"] = null;
+
+    try {
+      const { data } = await supabase.auth.getUser();
+
+      console.log("data", data);
+
+      const { user } = data;
+
+      console.log("user", user);
+
+      console.log("isMountedRef.current", isMountedRef.current);
+
+      if (!isMountedRef.current) return;
+
+      currentUser = user;
+    } catch {
+      // AuthSessionMissingError 등 비로그인 상태 → 일반 OAuth 분기로 fallthrough
+      currentUser = null;
+    }
+
+    const { isAnonymous } = isAnonymousUser({ user: currentUser });
+
+    try {
+      if (isAnonymous) {
+        const { error } = await supabase.auth.linkIdentity({
+          provider,
+          options: { redirectTo },
+        });
+
+        if (!isMountedRef.current) return;
+
+        if (error) {
+          throw error;
+        }
+
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo },
+      });
+
+      if (!isMountedRef.current) return;
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      if (!isMountedRef.current) return;
+
+      const message =
+        error instanceof Error ? error.message : String(error ?? "");
+      const status = (error as { status?: number })?.status;
+      const code = (error as { code?: string })?.code;
+
+      if (code === "identity_already_exists") {
+        toast.error(
+          "이미 다른 계정에 연결된 OAuth입니다. 로그아웃 후 다시 시도해주세요.",
+        );
+      } else if (message.includes("identity_already_exists")) {
+        toast.error(
+          "이미 다른 계정에 연결된 OAuth입니다. 로그아웃 후 다시 시도해주세요.",
+        );
+      } else if (message.includes("manual_linking")) {
+        toast.error("Supabase 설정(Allow Manual Linking)을 확인해주세요.");
+      } else if (status === 422) {
+        toast.error("이미 다른 계정에 연결된 OAuth입니다.");
+      } else {
+        console.error(error);
+        toast.error("로그인 중 문제가 발생했습니다.");
+      }
+
+      if (isMountedRef.current) {
+        setIsPending(false);
+      }
+
+      return;
+    }
+
+    // 정상 흐름이면 브라우저 redirect가 발생해 이 라인은 거의 도달하지 않는다.
+    if (isMountedRef.current) {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      className="w-full justify-center gap-2"
+      disabled={isPending}
+      onClick={handleClick}
+    >
+      {isPending ? (
+        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+      ) : provider === "google" ? (
+        <GoogleIcon />
+      ) : (
+        <GitHubIcon />
+      )}
+      <span>{PROVIDER_LABEL[provider]}</span>
+    </Button>
+  );
+}
