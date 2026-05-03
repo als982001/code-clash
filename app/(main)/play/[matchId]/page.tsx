@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { use } from "react";
 
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import EditorPanel from "@/app/features/editor/components/EditorPanel";
@@ -10,7 +11,6 @@ import type {
   IJudgeResponse,
   IOpponentProgress,
 } from "@/app/features/editor/types";
-import { useAutoAnonymousAuth } from "@/app/shared/hooks/useAutoAnonymousAuth";
 import MatchStatusBar from "@/app/features/match/components/MatchStatusBar";
 import SoundToggle from "@/app/features/match/components/SoundToggle";
 import { useMatchRealtime } from "@/app/features/match/hooks/useMatchRealtime";
@@ -24,6 +24,7 @@ import type {
 } from "@/app/features/match/types";
 import ProblemPanel from "@/app/features/problem/components/ProblemPanel";
 import type { IProblem } from "@/app/features/problem/types";
+import { useAuth } from "@/app/shared/hooks/useAuth";
 import { createClient } from "@/app/shared/lib/supabase/client";
 
 /** 대전 제한 시간 (초) - 15분 */
@@ -35,7 +36,17 @@ interface IPlayPageProps {
 
 export default function PlayPage({ params }: IPlayPageProps) {
   const { matchId } = use(params);
-  const { userId, isLoading: isAuthLoading } = useAutoAnonymousAuth();
+  const router = useRouter();
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const userId = user?.id ?? null;
+
+  // TODO(PR-7C): middleware 가드 도입 후 본 redirect 제거
+  useEffect(() => {
+    if (isAuthLoading) return;
+    if (user) return;
+    router.replace(`/login?next=${encodeURIComponent(`/play/${matchId}`)}`);
+  }, [isAuthLoading, user, router, matchId]);
+
   const [problem, setProblem] = useState<IProblem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);

@@ -5,30 +5,28 @@
 
 ## 라우트별 상태
 
-| 라우트              | 상태 | 파일                                                                                                                                  | 설명                                                                                                                         |
-| ------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `/`                 | 🚨   | `app/page.tsx`                                                                                                                        | **Next.js 기본 create-next-app 템플릿 그대로** — 실제 메인 화면 미구현                                                       |
-| `/play/[matchId]`   | ✅   | `app/(main)/play/[matchId]/page.tsx`                                                                                                  | 익명 자동 가입 + 문제 패널 + 코드 에디터 + 채점 + 결과 인라인 표시까지 동작                                                  |
-| `/result/[matchId]` | ⏳   | `app/(main)/result/[matchId]/` (디렉토리만)                                                                                           | 별도 라우트 미구현. 결과는 현재 `/play` 페이지 내 `matchResult` state 인라인                                                 |
-| `/login`            | ✅   | `app/(auth)/login/page.tsx` + `_components/{OAuthButton,GuestStartButton}.tsx` + `_utils/buildOAuthRedirect.ts` + `(auth)/layout.tsx` | OAuth(Google/GitHub) 버튼 + 게스트 시작 + `linkIdentity` 분기 + 정식 계정 자동 redirect (PR #7-B)                            |
-| `/auth/callback`    | ✅   | `app/auth/callback/route.ts` (라우트 그룹 밖, runtime=nodejs)                                                                         | `exchangeCodeForSession` + `profiles.update`로 닉네임/아바타 동기화 (1·2단 fallback) + `?next` 또는 `/`로 redirect (PR #7-B) |
-| `/dashboard`        | ⏳   | `app/(main)/dashboard/` (디렉토리만)                                                                                                  | Step 3 매칭 PR 예정 (친구 초대 매치 리스트)                                                                                  |
-| `/leaderboard`      | ⏳   | `app/(main)/leaderboard/` (디렉토리만)                                                                                                | 향후 단계 — 현재 명세 미정                                                                                                   |
-| `/profile/[userId]` | ⏳   | `app/(main)/profile/[userId]/` (디렉토리만)                                                                                           | Step 3 프로필 PR 예정 (프로필 보기 + 닉네임 편집)                                                                            |
+| 라우트              | 상태 | 파일                                                                                                               | 설명                                                                                                                          |
+| ------------------- | ---- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `/`                 | 🚨   | `app/page.tsx`                                                                                                     | **Next.js 기본 create-next-app 템플릿 그대로** — 실제 메인 화면 미구현                                                        |
+| `/play/[matchId]`   | ✅   | `app/(main)/play/[matchId]/page.tsx`                                                                               | 비로그인 시 `/login` redirect (PR #7-C에서 미들웨어로 대체 예정) + 문제 패널 + 코드 에디터 + 채점 + 결과 인라인 표시까지 동작 |
+| `/result/[matchId]` | ⏳   | `app/(main)/result/[matchId]/` (디렉토리만)                                                                        | 별도 라우트 미구현. 결과는 현재 `/play` 페이지 내 `matchResult` state 인라인                                                  |
+| `/login`            | ✅   | `app/(auth)/login/page.tsx` + `_components/OAuthButton.tsx` + `_utils/buildOAuthRedirect.ts` + `(auth)/layout.tsx` | OAuth(Google/GitHub) 버튼 + 정식 계정 자동 redirect (PR #7-B, 게스트 플로우는 `feature/remove-guest-flow`에서 제거)           |
+| `/auth/callback`    | ✅   | `app/auth/callback/route.ts` (라우트 그룹 밖, runtime=nodejs)                                                      | `exchangeCodeForSession` + `profiles.update`로 닉네임/아바타 동기화 (1·2단 fallback) + `?next` 또는 `/`로 redirect (PR #7-B)  |
+| `/dashboard`        | ⏳   | `app/(main)/dashboard/` (디렉토리만)                                                                               | Step 3 매칭 PR 예정 (친구 초대 매치 리스트)                                                                                   |
+| `/leaderboard`      | ⏳   | `app/(main)/leaderboard/` (디렉토리만)                                                                             | 향후 단계 — 현재 명세 미정                                                                                                    |
+| `/profile/[userId]` | ⏳   | `app/(main)/profile/[userId]/` (디렉토리만)                                                                        | Step 3 프로필 PR 예정 (프로필 보기 + 닉네임 편집)                                                                             |
 
 ## 인증 / 공통 인프라
 
-| 영역                        | 상태 | 위치 / 파일                                                                   | 설명                                                                                                         |
-| --------------------------- | ---- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 익명 자동 가입              | ✅   | `app/shared/hooks/useAutoAnonymousAuth.ts`                                    | `/play` 진입 시 트리거. `signInAnonymously` + 유저 ID 노출 (isMounted 가드 적용 완료)                        |
-| 통합 인증 상태 훅           | ✅   | `app/shared/hooks/useAuth.ts`                                                 | React Query 단일 진입점. user + profiles 조회 + fallback upsert                                              |
-| 익명 유저 판별 유틸         | ✅   | `app/shared/utils/isAnonymousUser.ts`                                         | 객체 매개변수 컨벤션 적용                                                                                    |
-| Supabase anon 클라이언트    | ✅   | `app/shared/lib/supabase/{client,server}.ts`                                  | 브라우저/서버 클라이언트 분리 (RLS 검증 경로)                                                                |
-| Supabase service 클라이언트 | ✅   | `app/shared/lib/supabase/service.ts` (PR #8)                                  | 서버 전용 service-role. 히든 test_cases 채점 시 RLS bypass                                                   |
-| middleware.ts               | 🔄   | `middleware.ts`                                                               | 세션 쿠키 자동 갱신만 동작. 라우트 가드는 PR #7-C 예정                                                       |
-| OAuth 로그인 플로우         | ✅   | `app/(auth)/login/_components/OAuthButton.tsx` + `app/auth/callback/route.ts` | `signInWithOAuth` / `linkIdentity` 분기 + 콜백에서 `exchangeCodeForSession` + 닉네임/아바타 동기화 (PR #7-B) |
-| AuthListener (전역 단일)    | ⏳   | —                                                                             | PR #7-C 예정 (`onAuthStateChange` 단일 구독)                                                                 |
-| UserMenu 드롭다운           | ⏳   | —                                                                             | PR #7-C 예정                                                                                                 |
+| 영역                        | 상태 | 위치 / 파일                                                                   | 설명                                                                                             |
+| --------------------------- | ---- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 통합 인증 상태 훅           | ✅   | `app/shared/hooks/useAuth.ts`                                                 | React Query 단일 진입점. user + profiles 조회 + fallback upsert                                  |
+| Supabase anon 클라이언트    | ✅   | `app/shared/lib/supabase/{client,server}.ts`                                  | 브라우저/서버 클라이언트 분리 (RLS 검증 경로)                                                    |
+| Supabase service 클라이언트 | ✅   | `app/shared/lib/supabase/service.ts` (PR #8)                                  | 서버 전용 service-role. 히든 test_cases 채점 시 RLS bypass                                       |
+| middleware.ts               | 🔄   | `middleware.ts`                                                               | 세션 쿠키 자동 갱신만 동작. 라우트 가드는 PR #7-C 예정                                           |
+| OAuth 로그인 플로우         | ✅   | `app/(auth)/login/_components/OAuthButton.tsx` + `app/auth/callback/route.ts` | `signInWithOAuth` 단일 경로 + 콜백에서 `exchangeCodeForSession` + 닉네임/아바타 동기화 (PR #7-B) |
+| AuthListener (전역 단일)    | ⏳   | —                                                                             | PR #7-C 예정 (`onAuthStateChange` 단일 구독)                                                     |
+| UserMenu 드롭다운           | ⏳   | —                                                                             | PR #7-C 예정                                                                                     |
 
 ## API 라우트 (참고용)
 
@@ -58,9 +56,9 @@
 ## 마지막 갱신
 
 - **일자**: 2026-05-03
-- **PR**: #7-B (`feature/login-oauth-callback`) 코드 작성 완료 (커밋/PR 생성 전)
-- **변경 요약**: `/login` + `/auth/callback` 구현 — OAuth(Google/GitHub) 버튼 + 게스트 시작 + `linkIdentity` 익명 승격 + 콜백에서 닉네임/아바타 동기화(1·2단 fallback). `app/(auth)/callback/` 빈 폴더 제거. `useAuth` / `useAutoAnonymousAuth` / `isAnonymousUser` / `profiles.self_insert` RLS / `handle_new_user` 트리거는 PR #6 / #7-A 결과물 그대로 wiring.
+- **PR**: `feature/remove-guest-flow` (코드 작성 완료, Code Reviewer 진행 전)
+- **변경 요약**: 게스트(익명) 로그인 플로우 전면 제거. `GuestStartButton` / `useAutoAnonymousAuth` / `isAnonymousUser` 삭제, `useAuth.isAnonymous` 반환 제거, `OAuthButton`의 `linkIdentity` 분기 제거, `/play/[matchId]`는 비로그인 시 `/login` redirect (임시, PR #7-C에서 미들웨어로 대체).
 - **다음 PR 예정 순서**:
-  1. **PR #7-C** — middleware 가드 + AuthListener + UserMenu + **메인 화면(`app/page.tsx`) 재작성** + `GuestStartButton`의 임시 invalidate 제거
+  1. **PR #7-C** — middleware 가드 + AuthListener + UserMenu + **메인 화면(`app/page.tsx`) 재작성**
   2. **Step 3 매칭 PR** — 친구 초대 + `/dashboard` + `POST /api/match/invite` + `/invite/[token]`
   3. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달

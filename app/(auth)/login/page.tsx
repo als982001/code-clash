@@ -6,12 +6,11 @@ import { Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
-import GuestStartButton from "@/app/(auth)/login/_components/GuestStartButton";
 import OAuthButton from "@/app/(auth)/login/_components/OAuthButton";
 import { useAuth } from "@/app/shared/hooks/useAuth";
 
 export default function LoginPage() {
-  const { user, isLoading, isAnonymous } = useAuth();
+  const { user, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
@@ -20,10 +19,9 @@ export default function LoginPage() {
   useEffect(() => {
     if (isLoading) return;
     if (!user) return;
-    if (isAnonymous) return;
 
     router.replace(next ?? "/");
-  }, [isLoading, user, isAnonymous, next, router]);
+  }, [isLoading, user, next, router]);
 
   useEffect(() => {
     if (error !== "oauth_failed") return;
@@ -59,14 +57,6 @@ export default function LoginPage() {
         <OAuthButton provider="google" nextPath={next} />
         <OAuthButton provider="github" nextPath={next} />
       </div>
-
-      <div className="flex items-center gap-3" aria-hidden="true">
-        <div className="h-px flex-1 bg-zinc-800" />
-        <span className="text-xs text-zinc-500">또는</span>
-        <div className="h-px flex-1 bg-zinc-800" />
-      </div>
-
-      <GuestStartButton />
     </div>
   );
 }
