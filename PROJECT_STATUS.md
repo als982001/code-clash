@@ -7,7 +7,7 @@
 
 ## 한 줄 진단
 
-대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B에서 `/login`/`/auth/callback` 구현 완료 — OAuth(Google/GitHub) + 닉네임 동기화(1·2단 fallback). 랭킹/경쟁 게임 특성상 익명 게스트 플로우는 `feature/remove-guest-flow`에서 전면 제거 (`GuestStartButton`/`useAutoAnonymousAuth`/`isAnonymousUser` 삭제, `linkIdentity` 분기 제거). `/play/[matchId]`는 비로그인 시 `/login` redirect 임시 적용 — middleware 가드 / AuthListener / UserMenu / 메인 화면은 PR #7-C 예정.
+대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B(#10)에서 `/login`/`/auth/callback` 구현 완료 + **PR #11(`feature/remove-guest-flow`) 머지 완료** — 랭킹/경쟁 게임 특성에 맞춰 익명 게스트 플로우 전면 제거(`GuestStartButton`/`useAutoAnonymousAuth`/`isAnonymousUser` 삭제, `linkIdentity` 분기 제거, Supabase 익명 토글 OFF + 익명 유저 2명 삭제 완료). `/play/[matchId]`는 비로그인 시 `/login` redirect 임시 적용 — middleware 가드 / AuthListener / UserMenu / 메인 화면은 PR #7-C 예정.
 
 ---
 
@@ -188,7 +188,7 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 
 | 테이블               | rows | 정책 수 | 주요 FK                                                                                          |
 | -------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------ |
-| `profiles`           | 4    | 3       | `id → auth.users.id`                                                                             |
+| `profiles`           | 3    | 3       | `id → auth.users.id` (PR #11 익명 정리 후: 시드 2 + 본인 1)                                      |
 | `problems`           | 9    | 1       | —                                                                                                |
 | `test_cases`         | 43   | 1       | `problem_id → problems.id` (`is_hidden` NOT NULL + (problem_id, input, is_hidden) UNIQUE, PR #9) |
 | `matches`            | 0    | 4       | `winner_id`, `host_id → profiles.id`, `problem_id → problems.id`                                 |
@@ -274,11 +274,13 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 ## 마지막 갱신
 
 - **일자**: 2026-05-03
-- **시점**: `feature/remove-guest-flow` 코드 작성 완료 (Code Reviewer 진행 전)
-- **변경 요약**: 게스트(익명) 로그인 플로우 전면 제거. `GuestStartButton` / `useAutoAnonymousAuth` / `isAnonymousUser` 삭제, `useAuth.isAnonymous` 반환 제거, `OAuthButton`의 `linkIdentity` 분기 + 디버그 로그 제거, `/play/[matchId]`는 비로그인 시 `/login` redirect (임시, PR #7-C에서 미들웨어로 대체).
+- **시점**: PR #11 (`feature/remove-guest-flow`) dev 머지 완료 + Supabase 익명 토글 OFF + 익명 유저 2명 직접 삭제 완료. 로컬 dev 최신화 완료.
+- **변경 요약**: 게스트(익명) 로그인 플로우 전면 제거. `GuestStartButton` / `useAutoAnonymousAuth` / `isAnonymousUser` 삭제, `useAuth.isAnonymous` 반환 제거, `OAuthButton`의 `linkIdentity` 분기 + 디버그 로그 제거, `/play/[matchId]`는 비로그인 시 `/login` redirect (임시, PR #7-C에서 미들웨어로 대체). DB 정합성 검증 완료(orphan profiles 0).
 - **다음 액션 순서**:
-  1. **`feature/remove-guest-flow` 마무리** — Code Reviewer 결과 반영 후 커밋 + PR 생성 + 머지 + Supabase 토글 OFF + 익명 유저 삭제
-  2. **PR #7-C** — middleware 라우트 가드 + AuthListener + UserMenu + **`app/page.tsx` 메인 화면 재작성**
-  3. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + `POST /api/match/invite` + `/invite/[token]` + invite_token 흐름
-  4. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달
-  5. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터 (PR #9의 UNIQUE 제약으로 사전 작업 완료)
+  1. **PR #7-C** — middleware 라우트 가드 + AuthListener + UserMenu + **`app/page.tsx` 메인 화면 재작성**. PR #11 보안 리뷰에서 발견된 3개 항목 우선 반영:
+     - `/login/page.tsx`의 `next` 파라미터에 `safeNext` 화이트리스트 적용 (open redirect 차단)
+     - middleware로 `/play/*`, `/result/*`, `/dashboard` 등 인증 필수 라우트 SSR 가드 → `/play/[matchId]/page.tsx`의 임시 client redirect (`TODO(PR-7C)` 주석 위치) 제거
+     - `/api/*` 라우트 핸들러에 `supabase.auth.getUser()` 체크 + 401 응답
+  2. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + `POST /api/match/invite` + `/invite/[token]` + invite_token 흐름
+  3. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달
+  4. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터 (PR #9의 UNIQUE 제약으로 사전 작업 완료)

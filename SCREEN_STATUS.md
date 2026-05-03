@@ -56,9 +56,9 @@
 ## 마지막 갱신
 
 - **일자**: 2026-05-03
-- **PR**: `feature/remove-guest-flow` (코드 작성 완료, Code Reviewer 진행 전)
-- **변경 요약**: 게스트(익명) 로그인 플로우 전면 제거. `GuestStartButton` / `useAutoAnonymousAuth` / `isAnonymousUser` 삭제, `useAuth.isAnonymous` 반환 제거, `OAuthButton`의 `linkIdentity` 분기 제거, `/play/[matchId]`는 비로그인 시 `/login` redirect (임시, PR #7-C에서 미들웨어로 대체).
+- **PR**: PR #11 (`feature/remove-guest-flow`) dev 머지 완료 (commit `ec7178e`). Supabase 익명 토글 OFF + 익명 유저 2명 삭제 완료.
+- **변경 요약**: 게스트(익명) 로그인 플로우 전면 제거. `GuestStartButton` / `useAutoAnonymousAuth` / `isAnonymousUser` 삭제, `useAuth.isAnonymous` 반환 제거, `OAuthButton`의 `linkIdentity` 분기 + 디버그 로그 3개 제거, `/play/[matchId]`는 비로그인 시 `/login?next=...` 임시 redirect 도입 (PR #7-C에서 미들웨어로 대체).
 - **다음 PR 예정 순서**:
-  1. **PR #7-C** — middleware 가드 + AuthListener + UserMenu + **메인 화면(`app/page.tsx`) 재작성**
+  1. **PR #7-C** — middleware 가드 + AuthListener + UserMenu + **메인 화면(`app/page.tsx`) 재작성**. PR #11 보안 리뷰에서 도출된 3개 항목 우선 반영 (`/login`의 `safeNext` 화이트리스트 / middleware SSR 가드 / `/api/*` 인증 체크)
   2. **Step 3 매칭 PR** — 친구 초대 + `/dashboard` + `POST /api/match/invite` + `/invite/[token]`
   3. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달
