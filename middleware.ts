@@ -3,28 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 import { sanitizeNext } from "@/app/(auth)/login/_utils/sanitizeNext";
-
-const PROTECTED_PREFIXES = [
-  "/play",
-  "/result",
-  "/dashboard",
-  "/profile/me",
-] as const;
-
-/**
- * pathname이 보호 라우트 prefix에 해당하는지 판정한다.
- * @param pathname 검사 대상 경로
- * @return isProtected 보호 prefix와 매칭되면 true
- */
-function isProtectedPath({ pathname }: { pathname: string }): {
-  isProtected: boolean;
-} {
-  const isProtected = PROTECTED_PREFIXES.some((prefix) => {
-    return pathname === prefix || pathname.startsWith(`${prefix}/`);
-  });
-
-  return { isProtected };
-}
+import { isProtectedPath } from "@/app/shared/lib/auth/protectedPaths";
 
 /**
  * 모든 요청에서 Supabase 세션 쿠키를 갱신한다.
