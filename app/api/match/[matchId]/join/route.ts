@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createClient } from "@/app/shared/lib/supabase/server";
+import { requireUser } from "@/app/shared/lib/auth/requireUser";
 
 /**
  * 대전 방에 참가한다. 2명이 모이면 자동으로 게임을 시작한다.
@@ -16,17 +16,11 @@ export async function POST(
 ) {
   const { matchId } = await params;
 
-  const { client } = await createClient();
+  const auth = await requireUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await client.auth.getUser();
+  if (!auth.ok) return auth.response;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
-  }
-
+  const { user, client } = auth;
   const userId = user.id;
 
   const { data: match, error: matchError } = await client

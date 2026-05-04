@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { createClient } from "@/app/shared/lib/supabase/client";
 
-const AUTH_QUERY_KEY = ["auth", "session-and-profile"] as const;
+export const AUTH_QUERY_KEY = ["auth", "session-and-profile"] as const;
 
 /**
  * 현재 인증 상태와 profiles row를 조회하는 React Query 훅.

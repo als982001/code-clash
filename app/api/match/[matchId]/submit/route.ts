@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { createClient } from "@/app/shared/lib/supabase/server";
+import { requireUser } from "@/app/shared/lib/auth/requireUser";
 import { createServiceClient } from "@/app/shared/lib/supabase/service";
 
 const JUDGE0_API_URL = process.env.JUDGE0_API_URL;
@@ -194,17 +194,11 @@ export async function POST(
 
   const { matchId } = await params;
 
-  const { client } = await createClient();
+  const auth = await requireUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await client.auth.getUser();
+  if (!auth.ok) return auth.response;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
-  }
-
+  const { user, client } = auth;
   const userId = user.id;
 
   const body: ISubmitBody = await request.json();

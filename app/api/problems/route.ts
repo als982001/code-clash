@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createClient } from "@/app/shared/lib/supabase/server";
+import { requireUser } from "@/app/shared/lib/auth/requireUser";
 
 /**
  * 전체 문제 목록을 조회한다.
@@ -8,7 +8,11 @@ import { createClient } from "@/app/shared/lib/supabase/server";
  * @return 문제 목록 배열
  */
 export async function GET() {
-  const { client } = await createClient();
+  const auth = await requireUser();
+
+  if (!auth.ok) return auth.response;
+
+  const { client } = auth;
 
   const { data, error } = await client
     .from("problems")
