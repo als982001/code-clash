@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import OAuthButton from "@/app/(auth)/login/_components/OAuthButton";
+import { sanitizeNext } from "@/app/(auth)/login/_utils/sanitizeNext";
 import { useAuth } from "@/app/shared/hooks/useAuth";
 
 export default function LoginPage() {
@@ -20,7 +21,7 @@ export default function LoginPage() {
     if (isLoading) return;
     if (!user) return;
 
-    router.replace(next ?? "/");
+    router.replace(sanitizeNext({ raw: next }).safeNext);
   }, [isLoading, user, next, router]);
 
   useEffect(() => {

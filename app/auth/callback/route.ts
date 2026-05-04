@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { sanitizeNext } from "@/app/(auth)/login/_utils/sanitizeNext";
+
 export const runtime = "nodejs";
 
 /**
@@ -23,10 +25,7 @@ export async function GET(request: NextRequest) {
   }
 
   const rawNext = searchParams.get("next");
-  const safeNext =
-    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")
-      ? rawNext
-      : "/";
+  const { safeNext } = sanitizeNext({ raw: rawNext });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { use } from "react";
 
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import EditorPanel from "@/app/features/editor/components/EditorPanel";
@@ -36,16 +35,8 @@ interface IPlayPageProps {
 
 export default function PlayPage({ params }: IPlayPageProps) {
   const { matchId } = use(params);
-  const router = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
   const userId = user?.id ?? null;
-
-  // TODO(PR-7C): middleware 가드 도입 후 본 redirect 제거
-  useEffect(() => {
-    if (isAuthLoading) return;
-    if (user) return;
-    router.replace(`/login?next=${encodeURIComponent(`/play/${matchId}`)}`);
-  }, [isAuthLoading, user, router, matchId]);
 
   const [problem, setProblem] = useState<IProblem | null>(null);
   const [isLoading, setIsLoading] = useState(true);

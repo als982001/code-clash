@@ -7,7 +7,7 @@
 
 ## 한 줄 진단
 
-대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B(#10)에서 `/login`/`/auth/callback` 구현 완료 + **PR #11(`feature/remove-guest-flow`) 머지 완료** — 랭킹/경쟁 게임 특성에 맞춰 익명 게스트 플로우 전면 제거(`GuestStartButton`/`useAutoAnonymousAuth`/`isAnonymousUser` 삭제, `linkIdentity` 분기 제거, Supabase 익명 토글 OFF + 익명 유저 2명 삭제 완료). `/play/[matchId]`는 비로그인 시 `/login` redirect 임시 적용 — middleware 가드 / AuthListener / UserMenu / 메인 화면은 PR #7-C 예정.
+대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B(#10)에서 `/login`/`/auth/callback` 구현 + PR #11에서 익명 게스트 플로우 제거 + **PR #7-C(`feature/auth-guards-and-home`) 작업 완료, dev 머지 전** — middleware 라우트 가드(`/play`, `/result`, `/dashboard`, `/profile/me`) + AuthListener 전역 구독 + UserMenu 드롭다운 + 홈 화면(`app/page.tsx` + `HomeClient`) 재작성. PR #11 보안 후속 3건(`sanitizeNext` open redirect 차단 / `/play` SSR 가드 / `requireUser` 401 가드) 모두 처리. 다음은 Step 3 매칭 PR(`/dashboard` + 친구 초대) + 프로필 PR.
 
 ---
 
@@ -48,42 +48,53 @@
 ```
 app/
 ├── (main)/
-│   ├── play/[matchId]/page.tsx   ✅  매치 진행 (인증/문제/에디터/채점/결과 전부 인라인)
+│   ├── play/[matchId]/page.tsx   ✅  매치 진행 (middleware SSR 가드, 임시 client redirect 제거 — PR #7-C)
 │   ├── result/[matchId]/         ⏳  빈 디렉토리 (결과는 /play 안에서 처리 중)
-│   ├── dashboard/                ⏳  빈 디렉토리 (PR #8 예정)
+│   ├── dashboard/                ⏳  빈 디렉토리 (Step 3 매칭 PR 예정)
 │   ├── leaderboard/              ⏳  빈 디렉토리 (장기)
-│   └── profile/[userId]/         ⏳  빈 디렉토리 (PR #9 예정)
+│   └── profile/[userId]/         ⏳  빈 디렉토리 (Step 3 프로필 PR 예정)
 ├── (auth)/
 │   ├── layout.tsx                ✅  풀스크린 레이아웃 (PR #7-B)
 │   └── login/
-│       ├── page.tsx              ✅  OAuth 2종 (PR #7-B, 게스트 플로우 제거)
+│       ├── page.tsx              ✅  OAuth 2종 + sanitizeNext 적용 (PR #7-B + #7-C)
 │       ├── _components/OAuthButton.tsx ✅  signInWithOAuth 단일 경로 (PR #7-B)
-│       └── _utils/buildOAuthRedirect.ts ✅  PR #7-B
-├── auth/callback/route.ts        ✅  exchangeCodeForSession + 닉네임 동기화, runtime=nodejs (PR #7-B)
+│       └── _utils/
+│           ├── buildOAuthRedirect.ts  ✅  sanitizeNext 적용 (PR #7-B + #7-C)
+│           └── sanitizeNext.ts        ✅  same-origin 화이트리스트 헬퍼 (PR #7-C)
+├── auth/callback/route.ts        ✅  exchangeCodeForSession + sanitizeNext + 닉네임 동기화 (PR #7-B + #7-C)
 ├── api/
-│   ├── judge/route.ts            ✅  Judge0 호출 (테스트 케이스별 결과 반환)
-│   ├── match/route.ts            ✅  매치 생성 + 호스트 등록
-│   ├── match/[matchId]/join/     ✅  참가자 추가
-│   ├── match/[matchId]/submit/   ✅  최종 채점 + 점수/승패 + 브로드캐스트
-│   ├── problems/route.ts         ✅  문제 목록 조회
-│   ├── problems/[problemId]/     ✅  문제 단건 조회
+│   ├── judge/route.ts            ✅  Judge0 호출 + requireUser 401 가드 (PR #7-C)
+│   ├── match/route.ts            ✅  매치 생성 + requireUser (PR #7-C)
+│   ├── match/[matchId]/join/     ✅  참가자 추가 + requireUser (PR #7-C)
+│   ├── match/[matchId]/submit/   ✅  최종 채점 + requireUser (PR #7-C)
+│   ├── problems/route.ts         ✅  문제 목록 + requireUser (PR #7-C)
+│   ├── problems/[problemId]/     ✅  문제 단건 + requireUser (PR #7-C)
 │   └── ai/                       ⏳  빈 디렉토리 (Gemini 리뷰 API 미구현)
+├── _components/
+│   └── HomeClient.tsx            ✅  홈 페이지 client view — UserMenu 헤더 + 로그인/비로그인 분기 + placeholder 카드 (PR #7-C)
 ├── features/
 │   ├── editor/                   ✅  CodeEditor + EditorPanel + ResultPanel + types
 │   ├── match/                    ✅  MatchStatusBar + SoundToggle + 3 hooks (Realtime/Sounds/Timer) + utils
 │   ├── problem/                  ✅  ProblemPanel + types
 │   └── review/                   ⏳  빈 디렉토리 (AI 리뷰 UI 미구현)
 ├── shared/
-│   ├── components/QueryProvider  ✅  staleTime 60s + retry 1 글로벌
-│   ├── hooks/useAuth             ✅  단일 진입점 (React Query + fallback upsert)
-│   ├── lib/supabase/{client,server,service}.ts ✅  브라우저/서버(anon) + service-role(server-only)
+│   ├── components/
+│   │   ├── QueryProvider.tsx     ✅  staleTime 60s + retry 1 글로벌 + AuthListener 마운트 (PR #7-C)
+│   │   ├── AuthListener.tsx      ✅  onAuthStateChange 전역 단일 구독 (PR #7-C)
+│   │   └── UserMenu.tsx          ✅  로그인/비로그인 분기 + Avatar 드롭다운 + 로그아웃 (PR #7-C)
+│   ├── hooks/useAuth             ✅  단일 진입점 + AUTH_QUERY_KEY export (PR #7-C)
+│   ├── lib/
+│   │   ├── auth/
+│   │   │   ├── requireUser.ts    ✅  API 라우트 401 가드 헬퍼 (PR #7-C)
+│   │   │   └── protectedPaths.ts ✅  middleware + client 공유 (PROTECTED_PREFIXES + isProtectedPath) (PR #7-C)
+│   │   └── supabase/{client,server,service}.ts ✅  브라우저/서버(anon) + service-role(server-only)
 │   └── stores/useSoundStore.ts   ✅  Zustand 사운드 토글
 ├── layout.tsx                    ✅  QueryProvider + Sonner Toaster
-└── page.tsx                      🚨  Next.js create-next-app 기본 템플릿 그대로
+└── page.tsx                      ✅  서버 wrapper (HomeClient 마운트, PR #7-C)
 
 components/ui/                    ✅  shadcn 8개 (avatar/button/card/dialog/dropdown-menu/input/label/sonner)
 lib/utils.ts                      ✅  shadcn cn() 헬퍼
-middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (라우트 가드 없음 — PR #7-C 예정)
+middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/play, /result, /dashboard, /profile/me) SSR 가드 + /api/* 분기 (PR #7-C)
 ```
 
 ---
@@ -97,13 +108,18 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 - 멱등성: 동일 유저의 중복 제출 시 기존 submission 반환
 - 점수 산출: `(passed/total × 1000) + ((Tmax-Tused)/Tmax × 500)` (서버 단독, anti-cheat)
 
-### 인증 인프라 (Step 3 — PR #6 + #7-A + #7-B)
+### 인증 인프라 (Step 3 — PR #6 + #7-A + #7-B + #7-C)
 
 - OAuth(Google/GitHub) 로그인 (`/login`) + `/auth/callback`에서 `exchangeCodeForSession` + 닉네임/아바타 동기화
 - `auth.users` AFTER INSERT 트리거 → `public.profiles` 자동 생성 (best-effort)
-- `useAuth` 단일 진입점 + 트리거 실패 대비 fallback upsert
+- `useAuth` 단일 진입점 + 트리거 실패 대비 fallback upsert + `AUTH_QUERY_KEY` export (PR #7-C)
 - `profiles` RLS 3종 (`public_read` + `self_update` + `self_insert`)
-- 게스트(익명) 로그인 플로우는 랭킹/경쟁 게임 부적합으로 `feature/remove-guest-flow`에서 제거. `/play/[matchId]`는 비로그인 시 임시 클라이언트 redirect (PR #7-C에서 미들웨어로 대체)
+- 게스트(익명) 로그인 플로우 전면 제거 (PR #11)
+- middleware 라우트 가드 — 보호 prefix(`/play`, `/result`, `/dashboard`, `/profile/me`) SSR redirect + `/api/*`는 쿠키 갱신만 (PR #7-C)
+- AuthListener 전역 단일 구독 — `onAuthStateChange`에서 SIGNED_IN/SIGNED_OUT/USER_UPDATED만 `AUTH_QUERY_KEY` invalidate (PR #7-C)
+- UserMenu 드롭다운 — 로그인/비로그인 분기 + Avatar + 로그아웃 (보호 prefix면 `/`로 push, 아니면 refresh) (PR #7-C)
+- HomeClient — 홈 페이지 client view (UserMenu 헤더 + 분기 + placeholder 카드) + `app/page.tsx`는 서버 wrapper로 축소 (PR #7-C)
+- 보안 헬퍼 3종 — `sanitizeNext` (open redirect 차단) / `requireUser` (API 라우트 401 가드 통일) / `protectedPaths` (middleware + client 공유 prefix 매칭) (PR #7-C)
 
 ### 실시간 (Supabase Realtime broadcast)
 
@@ -121,21 +137,23 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 
 ## 부분 구현 / 스텁 영역 🔄 ⏳
 
-| 영역                       | 마커 | 비고                                                                                           |
-| -------------------------- | ---- | ---------------------------------------------------------------------------------------------- |
-| `app/page.tsx` 메인 화면   | 🚨   | Next.js 기본 템플릿. PR #7-C 또는 별도 PR로 재작성 필요                                        |
-| `app/(auth)/login/`        | ✅   | PR #7-B 완료 (`signInWithOAuth` 단일 경로, 게스트 시작은 `feature/remove-guest-flow`에서 제거) |
-| `app/auth/callback/`       | ✅   | PR #7-B 완료 (`exchangeCodeForSession` + 닉네임/아바타 동기화 1·2단 fallback)                  |
-| `app/(main)/dashboard/`    | ⏳   | Step 3 매칭 PR 예정 (친구 초대 매치 리스트)                                                    |
-| `app/(main)/profile/[id]/` | ⏳   | Step 3 프로필 PR 예정 (프로필 보기 + 닉네임 편집)                                              |
-| `app/(main)/leaderboard/`  | ⏳   | 명세 미정 (장기)                                                                               |
-| `app/(main)/result/[id]/`  | ⏳   | 빈 디렉토리. 결과는 `/play` 페이지 인라인 (분리 여부 미정)                                     |
-| `app/api/ai/`              | ⏳   | 빈 디렉토리. Gemini 코드 리뷰 API 미구현                                                       |
-| `app/features/review/`     | ⏳   | 빈 디렉토리. AI 리뷰 UI 미구현                                                                 |
-| 라우트 가드 (middleware)   | ⏳   | 현재 middleware는 세션 쿠키 갱신만 함 — 인증 분기 없음 (PR #7-C 예정)                          |
-| AuthListener (전역)        | ⏳   | `onAuthStateChange` 단일 구독 미구현 (PR #7-C 예정)                                            |
-| UserMenu                   | ⏳   | 로그인된 유저 드롭다운 메뉴 미구현 (PR #7-C 예정)                                              |
-| Edge Functions             | ⏳   | 0개 (`mcp__supabase__list_edge_functions` 결과 비어있음)                                       |
+| 영역                       | 마커 | 비고                                                                                            |
+| -------------------------- | ---- | ----------------------------------------------------------------------------------------------- |
+| `app/page.tsx` 홈 화면     | ✅   | 서버 wrapper + HomeClient (UserMenu 헤더 + 분기 + placeholder 카드, PR #7-C)                    |
+| `app/(auth)/login/`        | ✅   | PR #7-B 완료 + sanitizeNext 적용 (PR #7-C)                                                      |
+| `app/auth/callback/`       | ✅   | PR #7-B 완료 + sanitizeNext 적용 (PR #7-C)                                                      |
+| `app/(main)/dashboard/`    | ⏳   | Step 3 매칭 PR 예정 (친구 초대 매치 리스트). middleware 가드 활성                               |
+| `app/(main)/profile/[id]/` | ⏳   | Step 3 프로필 PR 예정 (프로필 보기 + 닉네임 편집). `/profile/me`만 middleware 가드              |
+| `app/(main)/leaderboard/`  | ⏳   | 명세 미정 (장기)                                                                                |
+| `app/(main)/result/[id]/`  | ⏳   | 빈 디렉토리. 결과는 `/play` 페이지 인라인 (분리 여부 미정). middleware 가드 활성                |
+| `app/api/ai/`              | ⏳   | 빈 디렉토리. Gemini 코드 리뷰 API 미구현                                                        |
+| `app/features/review/`     | ⏳   | 빈 디렉토리. AI 리뷰 UI 미구현                                                                  |
+| 라우트 가드 (middleware)   | ✅   | 보호 prefix(`/play`, `/result`, `/dashboard`, `/profile/me`) SSR 가드 + `/api/*` 분기 (PR #7-C) |
+| AuthListener (전역)        | ✅   | `app/shared/components/AuthListener.tsx` — QueryProvider 내부 마운트 (PR #7-C)                  |
+| UserMenu                   | ✅   | `app/shared/components/UserMenu.tsx` — HomeClient에서만 마운트 (글로벌 헤더는 다음 PR)          |
+| HomeClient                 | ✅   | `app/_components/HomeClient.tsx` — UserMenu + 분기 + placeholder 카드 (PR #7-C)                 |
+| (main) 글로벌 헤더         | ⏳   | `(main)/layout.tsx` 미도입. `/play`, `/dashboard`, `/profile`은 헤더 없음 (다음 PR 결정)        |
+| Edge Functions             | ⏳   | 0개 (`mcp__supabase__list_edge_functions` 결과 비어있음)                                        |
 
 ---
 
@@ -156,11 +174,10 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 - 운영 DB에는 이미 동일 데이터 존재 → 마이그레이션은 신규 환경 부트스트랩 + 회귀 방어용
 - problems: `ON CONFLICT (id) DO NOTHING`, test_cases: `WHERE NOT EXISTS` 패턴
 
-### 3. 🚨 UI — `app/page.tsx` 메인 화면 미구현
+### 3. ✅ Resolved — `app/page.tsx` 홈 화면 (PR #7-C)
 
-- Next.js create-next-app 기본 템플릿 그대로 (Vercel/Templates 안내 텍스트)
-- PR #7-B에서 `/login`을 만들어도 진입할 메인 화면이 없는 어색한 동선
-- PR 우선순위 재검토 권장
+- 서버 wrapper(`app/page.tsx`) + `HomeClient` (UserMenu 헤더 + 로그인/비로그인 분기 + 매치/대시보드 placeholder 카드)
+- 매치 찾기 / 대시보드 카드는 disabled placeholder — Step 3 매칭/프로필 PR에서 활성화 예정
 
 ### 4. ✅ Resolved — 후속 보강 (PR #9 머지 완료)
 
@@ -179,6 +196,13 @@ middleware.ts                     ✅  Supabase 세션 쿠키 자동 갱신만 (
 
 - 마이그레이션을 SQL Editor 수동 실행으로 적용해서 Supabase의 `supabase_migrations` 시스템 테이블에는 등록 안 됨
 - 운영 환경 보존엔 문제 없으나, 향후 CLI 기반 자동화 도입 시 한 번 reconcile 필요
+
+### 7. ℹ️ 코드 리뷰 nit 후속 (PR #7-C 묶음 C)
+
+- placeholder Card의 시멘틱 정리 (현재 `aria-disabled="true"`만, 인터랙티브 element 아니라 의미 약함). 매칭 PR에서 카드를 실제 `<button>`/`<Link>`로 전환할 때 `role`/keyboard focus 일괄 정리
+- "준비중 — 다음 PR에서 제공됩니다" 카피의 개발 jargon. 알파/베타 사용자 노출 직전에 "곧 제공될 예정" 류로 일괄 변경
+- LoginPage `text-zinc-400` 하드코딩 vs HomeClient `text-muted-foreground` design token. LoginPage도 token으로 통일하면 다크/라이트 호환성 일관됨
+- `app/_components/` 폴더 컨벤션 가이드 추가 (home 전용 vs route별 `_components` 구분)
 
 ---
 
@@ -273,14 +297,12 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
-- **일자**: 2026-05-03
-- **시점**: PR #11 (`feature/remove-guest-flow`) dev 머지 완료 + Supabase 익명 토글 OFF + 익명 유저 2명 직접 삭제 완료. 로컬 dev 최신화 완료.
-- **변경 요약**: 게스트(익명) 로그인 플로우 전면 제거. `GuestStartButton` / `useAutoAnonymousAuth` / `isAnonymousUser` 삭제, `useAuth.isAnonymous` 반환 제거, `OAuthButton`의 `linkIdentity` 분기 + 디버그 로그 제거, `/play/[matchId]`는 비로그인 시 `/login` redirect (임시, PR #7-C에서 미들웨어로 대체). DB 정합성 검증 완료(orphan profiles 0).
+- **일자**: 2026-05-04
+- **시점**: PR #7-C (`feature/auth-guards-and-home`) 묶음 A/B/C 작업 완료, dev 머지 전. 3개 커밋 (`5cb48ba` 묶음 A / `42f9aff` 묶음 B / `46fb23f` 묶음 C).
+- **변경 요약**: middleware 라우트 가드(`/play`, `/result`, `/dashboard`, `/profile/me`) + AuthListener 전역 단일 구독 + UserMenu 드롭다운 + 홈 화면(`app/page.tsx` + `HomeClient`) 재작성. PR #11 보안 후속 3건 모두 처리 — `sanitizeNext` open redirect 차단(`/login`/OAuth callback/OAuth start/middleware 4곳) / middleware SSR 가드(`/play/*`, `/result/*`, `/dashboard`, `/profile/me`) / `requireUser` 헬퍼로 6개 API 라우트 401 가드 통일.
 - **다음 액션 순서**:
-  1. **PR #7-C** — middleware 라우트 가드 + AuthListener + UserMenu + **`app/page.tsx` 메인 화면 재작성**. PR #11 보안 리뷰에서 발견된 3개 항목 우선 반영:
-     - `/login/page.tsx`의 `next` 파라미터에 `safeNext` 화이트리스트 적용 (open redirect 차단)
-     - middleware로 `/play/*`, `/result/*`, `/dashboard` 등 인증 필수 라우트 SSR 가드 → `/play/[matchId]/page.tsx`의 임시 client redirect (`TODO(PR-7C)` 주석 위치) 제거
-     - `/api/*` 라우트 핸들러에 `supabase.auth.getUser()` 체크 + 401 응답
-  2. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + `POST /api/match/invite` + `/invite/[token]` + invite_token 흐름
-  3. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달
-  4. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터 (PR #9의 UNIQUE 제약으로 사전 작업 완료)
+  1. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + `POST /api/match/invite` + `/invite/[token]` + invite_token 흐름
+  2. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달
+  3. **(main) 글로벌 헤더 PR** — `(main)/layout.tsx` 도입으로 `/play`, `/dashboard`, `/profile` 등에 UserMenu 일괄 마운트 여부 결정
+  4. **코드 리뷰 nit 후속** — placeholder Card 시멘틱 / "다음 PR" 카피 / LoginPage design token 통일 / `app/_components/` 폴더 컨벤션 가이드 (매칭 PR과 함께 처리 가능)
+  5. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터 (PR #9의 UNIQUE 제약으로 사전 작업 완료)

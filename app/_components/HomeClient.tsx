@@ -1,0 +1,91 @@
+"use client";
+
+import { Loader2 } from "lucide-react";
+import Link from "next/link";
+
+import { UserMenu } from "@/app/shared/components/UserMenu";
+import { useAuth } from "@/app/shared/hooks/useAuth";
+import { buttonVariants } from "@/components/ui/button";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+export default function HomeClient() {
+  const { user, isLoading } = useAuth();
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <header className="flex w-full items-center justify-end border-b border-border/50 px-6 py-4">
+        <UserMenu />
+      </header>
+
+      <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+        {isLoading ? (
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+            <Loader2 className="size-6 animate-spin" aria-hidden="true" />
+            <span className="text-sm">로딩중...</span>
+          </div>
+        ) : user ? (
+          <SignedInView />
+        ) : (
+          <SignedOutView />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function SignedOutView() {
+  return (
+    <div className="flex w-full max-w-md flex-col items-center gap-6 text-center">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-semibold tracking-tight">Code Clash</h1>
+        <p className="text-sm text-muted-foreground">
+          1:1 실시간 알고리즘 대전 플랫폼
+        </p>
+      </div>
+      <Link
+        href="/login"
+        className={buttonVariants({ variant: "default", size: "lg" })}
+      >
+        로그인하고 시작하기
+      </Link>
+    </div>
+  );
+}
+
+function SignedInView() {
+  return (
+    <div className="flex w-full max-w-3xl flex-col gap-8">
+      <div className="space-y-1 text-center">
+        <h2 className="text-2xl font-semibold tracking-tight">
+          무엇을 하시겠어요?
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          매치 시작 또는 대시보드로 이동하세요.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card aria-disabled="true" className="cursor-not-allowed opacity-60">
+          <CardHeader>
+            <CardTitle>매치 찾기</CardTitle>
+            <CardDescription>
+              준비중 — 매칭 큐는 다음 PR에서 제공됩니다.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+        <Card aria-disabled="true" className="cursor-not-allowed opacity-60">
+          <CardHeader>
+            <CardTitle>대시보드</CardTitle>
+            <CardDescription>
+              준비중 — 친구 초대/매치 기록 페이지는 다음 PR에서 제공됩니다.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    </div>
+  );
+}
