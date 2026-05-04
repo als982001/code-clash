@@ -59,7 +59,7 @@
 ## 마지막 갱신
 
 - **일자**: 2026-05-04
-- **PR**: PR #7-C (`feature/auth-guards-and-home`) 묶음 A/B/C 작업 완료, dev 머지 전. 3개 커밋 (`5cb48ba` 묶음 A / `42f9aff` 묶음 B / `46fb23f` 묶음 C).
+- **PR**: PR #7-C (#12) `dev` squash merge 완료 (squash commit `441d766`). feature 4커밋(`5cb48ba`/`42f9aff`/`46fb23f`/`bca2404`)이 단일 squash로 들어감.
 - **변경 요약**: middleware 라우트 가드(`/play`, `/result`, `/dashboard`, `/profile/me`) + AuthListener 전역 단일 구독 + UserMenu 드롭다운 + 홈 화면(`app/page.tsx` + `HomeClient`) 재작성. PR #11 보안 후속 3건 모두 처리 — `sanitizeNext` open redirect 차단(`/login`/OAuth callback/OAuth start/middleware 4곳) / middleware SSR 가드(`/play/*`, `/result/*`, `/dashboard`, `/profile/me`) / `requireUser` 헬퍼로 6개 API 라우트 401 가드 통일.
 - **다음 PR 예정 순서**:
   1. **Step 3 매칭 PR** — 친구 초대 + `/dashboard` + `POST /api/match/invite` + `/invite/[token]`

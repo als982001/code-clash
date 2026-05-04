@@ -7,7 +7,7 @@
 
 ## 한 줄 진단
 
-대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B(#10)에서 `/login`/`/auth/callback` 구현 + PR #11에서 익명 게스트 플로우 제거 + **PR #7-C(`feature/auth-guards-and-home`) 작업 완료, dev 머지 전** — middleware 라우트 가드(`/play`, `/result`, `/dashboard`, `/profile/me`) + AuthListener 전역 구독 + UserMenu 드롭다운 + 홈 화면(`app/page.tsx` + `HomeClient`) 재작성. PR #11 보안 후속 3건(`sanitizeNext` open redirect 차단 / `/play` SSR 가드 / `requireUser` 401 가드) 모두 처리. 다음은 Step 3 매칭 PR(`/dashboard` + 친구 초대) + 프로필 PR.
+대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B(#10)에서 `/login`/`/auth/callback` 구현 + PR #11에서 익명 게스트 플로우 제거 + **PR #7-C(#12) dev 머지 완료 (squash commit `441d766`)** — middleware 라우트 가드(`/play`, `/result`, `/dashboard`, `/profile/me`) + AuthListener 전역 구독 + UserMenu 드롭다운 + 홈 화면(`app/page.tsx` + `HomeClient`) 재작성. PR #11 보안 후속 3건(`sanitizeNext` open redirect 차단 / `/play` SSR 가드 / `requireUser` 401 가드) 모두 처리. 다음은 Step 3 매칭 PR(`/dashboard` + 친구 초대) + 프로필 PR.
 
 ---
 
@@ -298,7 +298,7 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 ## 마지막 갱신
 
 - **일자**: 2026-05-04
-- **시점**: PR #7-C (`feature/auth-guards-and-home`) 묶음 A/B/C 작업 완료, dev 머지 전. 3개 커밋 (`5cb48ba` 묶음 A / `42f9aff` 묶음 B / `46fb23f` 묶음 C).
+- **시점**: PR #7-C (#12) `dev` squash merge 완료 (squash commit `441d766`). feature 브랜치 4개 커밋(`5cb48ba` A / `42f9aff` B / `46fb23f` C / `bca2404` D)이 단일 squash로 들어감. 로컬 dev 최신화 완료, feature/auth-guards-and-home 정리 완료.
 - **변경 요약**: middleware 라우트 가드(`/play`, `/result`, `/dashboard`, `/profile/me`) + AuthListener 전역 단일 구독 + UserMenu 드롭다운 + 홈 화면(`app/page.tsx` + `HomeClient`) 재작성. PR #11 보안 후속 3건 모두 처리 — `sanitizeNext` open redirect 차단(`/login`/OAuth callback/OAuth start/middleware 4곳) / middleware SSR 가드(`/play/*`, `/result/*`, `/dashboard`, `/profile/me`) / `requireUser` 헬퍼로 6개 API 라우트 401 가드 통일.
 - **다음 액션 순서**:
   1. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + `POST /api/match/invite` + `/invite/[token]` + invite_token 흐름
