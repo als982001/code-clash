@@ -7,7 +7,7 @@
 
 ## 한 줄 진단
 
-대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B(#10)에서 `/login`/`/auth/callback` 구현 + PR #11에서 익명 게스트 플로우 제거 + **PR #7-C(#12) dev 머지 완료 (squash commit `441d766`)** — middleware 라우트 가드(`/play`, `/result`, `/dashboard`, `/profile/me`) + AuthListener 전역 구독 + UserMenu 드롭다운 + 홈 화면(`app/page.tsx` + `HomeClient`) 재작성. PR #11 보안 후속 3건(`sanitizeNext` open redirect 차단 / `/play` SSR 가드 / `requireUser` 401 가드) 모두 처리. 다음은 Step 3 매칭 PR(`/dashboard` + 친구 초대) + 프로필 PR.
+대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B(#10)에서 `/login`/`/auth/callback` 구현 + PR #11에서 익명 게스트 플로우 제거 + **PR #7-C(#12) dev 머지 완료** — middleware 라우트 가드 + AuthListener 전역 구독 + UserMenu 드롭다운 + 홈 화면 재작성 + PR #11 보안 후속 3건. **PR #7-D(예정 #13) `feature/step3-matching-invite` 브랜치 5커밋 — Step 3 매칭 PR**: 친구 초대 매칭 흐름(POST /api/match/invite + /dashboard + InviteCard) + /invite/[token] 비인증 진입 + useMatchStatus 훅(matches 실시간 동기화) + HostWaitingView/WaitingForGameStart + /play 5단계 분기 통합. 다음은 Step 3 프로필 PR.
 
 ---
 
@@ -48,9 +48,12 @@
 ```
 app/
 ├── (main)/
-│   ├── play/[matchId]/page.tsx   ✅  매치 진행 (middleware SSR 가드, 임시 client redirect 제거 — PR #7-C)
+│   ├── play/[matchId]/page.tsx   ✅  매치 진행 + 5단계 분기 (loading/error/null/waiting+host/waiting+게스트/ongoing|finished, PR #7-D)
+│   ├── play/[matchId]/_components/HostWaitingView.tsx       ✅  호스트 대기 화면 (URL 복사 + 만료 분기 + Realtime 안내, PR #7-D)
+│   ├── play/[matchId]/_components/WaitingForGameStart.tsx   ✅  비호스트 race window 스피너 (PR #7-D)
 │   ├── result/[matchId]/         ⏳  빈 디렉토리 (결과는 /play 안에서 처리 중)
-│   ├── dashboard/                ⏳  빈 디렉토리 (Step 3 매칭 PR 예정)
+│   ├── dashboard/page.tsx        ✅  친구 초대 카드 (PR #7-D)
+│   ├── dashboard/_components/InviteCard.tsx ✅  POST /api/match/invite → Dialog (PR #7-D)
 │   ├── leaderboard/              ⏳  빈 디렉토리 (장기)
 │   └── profile/[userId]/         ⏳  빈 디렉토리 (Step 3 프로필 PR 예정)
 ├── (auth)/
@@ -62,19 +65,22 @@ app/
 │           ├── buildOAuthRedirect.ts  ✅  sanitizeNext 적용 (PR #7-B + #7-C)
 │           └── sanitizeNext.ts        ✅  same-origin 화이트리스트 헬퍼 (PR #7-C)
 ├── auth/callback/route.ts        ✅  exchangeCodeForSession + sanitizeNext + 닉네임 동기화 (PR #7-B + #7-C)
+├── invite/[token]/page.tsx       ✅  비인증 허용 서버 컴포넌트 + 5분기 검증 (PR #7-D)
+├── invite/[token]/_components/JoinInvite.tsx ✅  호스트 redirect / 비로그인 CTA / 게스트 입장 (PR #7-D)
 ├── api/
 │   ├── judge/route.ts            ✅  Judge0 호출 + requireUser 401 가드 (PR #7-C)
-│   ├── match/route.ts            ✅  매치 생성 + requireUser (PR #7-C)
+│   ├── match/route.ts            ✅  매치 생성 (자동 매칭용) + requireUser (PR #7-C)
+│   ├── match/invite/route.ts     ✅  친구 초대 매치 + 토큰 발급 (PR #7-D, runtime=nodejs)
 │   ├── match/[matchId]/join/     ✅  참가자 추가 + requireUser (PR #7-C)
 │   ├── match/[matchId]/submit/   ✅  최종 채점 + requireUser (PR #7-C)
 │   ├── problems/route.ts         ✅  문제 목록 + requireUser (PR #7-C)
 │   ├── problems/[problemId]/     ✅  문제 단건 + requireUser (PR #7-C)
 │   └── ai/                       ⏳  빈 디렉토리 (Gemini 리뷰 API 미구현)
 ├── _components/
-│   └── HomeClient.tsx            ✅  홈 페이지 client view — UserMenu 헤더 + 로그인/비로그인 분기 + placeholder 카드 (PR #7-C)
+│   └── HomeClient.tsx            ✅  홈 페이지 client view — UserMenu 헤더 + 분기 + 매치 placeholder + 대시보드 카드 활성화 (PR #7-C/#7-D)
 ├── features/
 │   ├── editor/                   ✅  CodeEditor + EditorPanel + ResultPanel + types
-│   ├── match/                    ✅  MatchStatusBar + SoundToggle + 3 hooks (Realtime/Sounds/Timer) + utils
+│   ├── match/                    ✅  MatchStatusBar + SoundToggle + 4 hooks (Realtime/Sounds/Timer/Status) + utils (createInviteToken/isInviteExpired) + types/invite
 │   ├── problem/                  ✅  ProblemPanel + types
 │   └── review/                   ⏳  빈 디렉토리 (AI 리뷰 UI 미구현)
 ├── shared/
@@ -92,7 +98,7 @@ app/
 ├── layout.tsx                    ✅  QueryProvider + Sonner Toaster
 └── page.tsx                      ✅  서버 wrapper (HomeClient 마운트, PR #7-C)
 
-components/ui/                    ✅  shadcn 8개 (avatar/button/card/dialog/dropdown-menu/input/label/sonner)
+components/ui/                    ✅  shadcn 8개 (avatar/button/card/dialog/dropdown-menu/input/label/sonner) + button-variants.ts (server-safe cva, PR #7-D)
 lib/utils.ts                      ✅  shadcn cn() 헬퍼
 middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/play, /result, /dashboard, /profile/me) SSR 가드 + /api/* 분기 (PR #7-C)
 ```
@@ -133,6 +139,20 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 - 매치 타이머 (`useMatchTimer`) — 15분 카운트다운
 - 매치 사운드 (`useMatchSounds`) — 효과음 재생
 
+### Step 3 매칭 (PR #7-D)
+
+- 친구 초대 매칭 흐름 — 호스트가 `/dashboard`에서 invite URL 발급 → 게스트가 `/invite/[token]` 접속 → 입장 → `/play/[matchId]` 자동 전환
+- `POST /api/match/invite` — Node.js runtime, `crypto.randomBytes(16).toString("base64url")` 22자 토큰, 충돌 재시도 3회 (PostgrestError 23505), inviteUrl 3-tier fallback (envOrigin → headerOrigin → requestUrlOrigin)
+- `/dashboard` + `InviteCard` — Dialog 안에 inviteUrl 노출 + 클립보드 복사 (1.5초 시각 피드백) + "방으로 입장" CTA
+- `/invite/[token]` 비인증 허용 서버 컴포넌트 — 5분기 검증 (not_found / already_started / already_finished / expired / full). status를 만료보다 먼저 검사
+- `JoinInvite` 클라이언트 — 호스트 본인 자기 redirect / 비로그인 시 `/login?next=...` CTA / 게스트 입장 버튼 (`/api/match/[matchId]/join` 호출)
+- `useMatchStatus` 훅 — 초기 fetch + Realtime postgres_changes UPDATE filter + 30초 polling fallback (3개 useEffect 자체 isMounted 가드, 채널명 `match-status:${matchId}`로 broadcast 분리)
+- `HostWaitingView` — URL 복사 + 만료 분기 (isInviteExpired 헬퍼 + useMemo) + Realtime 끊김 안내 (만료 분기와 상호배타)
+- `WaitingForGameStart` — 비호스트 waiting → ongoing 전환 직전 race window 스피너
+- `/play/[matchId]` 통합 — 5단계 분기 추가 + 기존 `fetchProblem`의 matches select 중복 제거 → useMatchStatus의 problemId/startTime 위임 + isMountedRef 도입 (handleRun useCallback + handleSubmit 가드)
+- `buttonVariants` server-safe 모듈 분리 (`components/ui/button-variants.ts`) — `"use client"` 파일에서 export된 함수가 server component에서 호출 불가능한 RSC 룰 우회
+- HomeClient의 "대시보드" 카드 활성화 (`<Link href="/dashboard"><Card />`)
+
 ---
 
 ## 부분 구현 / 스텁 영역 🔄 ⏳
@@ -142,7 +162,8 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 | `app/page.tsx` 홈 화면     | ✅   | 서버 wrapper + HomeClient (UserMenu 헤더 + 분기 + placeholder 카드, PR #7-C)                    |
 | `app/(auth)/login/`        | ✅   | PR #7-B 완료 + sanitizeNext 적용 (PR #7-C)                                                      |
 | `app/auth/callback/`       | ✅   | PR #7-B 완료 + sanitizeNext 적용 (PR #7-C)                                                      |
-| `app/(main)/dashboard/`    | ⏳   | Step 3 매칭 PR 예정 (친구 초대 매치 리스트). middleware 가드 활성                               |
+| `app/(main)/dashboard/`    | ✅   | 친구 초대 카드 + InviteCard Dialog (PR #7-D)                                                    |
+| `app/invite/[token]/`      | ✅   | 비인증 허용 서버 컴포넌트 + JoinInvite (PR #7-D)                                                |
 | `app/(main)/profile/[id]/` | ⏳   | Step 3 프로필 PR 예정 (프로필 보기 + 닉네임 편집). `/profile/me`만 middleware 가드              |
 | `app/(main)/leaderboard/`  | ⏳   | 명세 미정 (장기)                                                                                |
 | `app/(main)/result/[id]/`  | ⏳   | 빈 디렉토리. 결과는 `/play` 페이지 인라인 (분리 여부 미정). middleware 가드 활성                |
@@ -297,12 +318,13 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
-- **일자**: 2026-05-04
-- **시점**: PR #7-C (#12) `dev` squash merge 완료 (squash commit `441d766`). feature 브랜치 4개 커밋(`5cb48ba` A / `42f9aff` B / `46fb23f` C / `bca2404` D)이 단일 squash로 들어감. 로컬 dev 최신화 완료, feature/auth-guards-and-home 정리 완료.
-- **변경 요약**: middleware 라우트 가드(`/play`, `/result`, `/dashboard`, `/profile/me`) + AuthListener 전역 단일 구독 + UserMenu 드롭다운 + 홈 화면(`app/page.tsx` + `HomeClient`) 재작성. PR #11 보안 후속 3건 모두 처리 — `sanitizeNext` open redirect 차단(`/login`/OAuth callback/OAuth start/middleware 4곳) / middleware SSR 가드(`/play/*`, `/result/*`, `/dashboard`, `/profile/me`) / `requireUser` 헬퍼로 6개 API 라우트 401 가드 통일.
+- **일자**: 2026-05-09
+- **시점**: PR #7-D (예정 #13) `feature/step3-matching-invite` 브랜치 5커밋 (`8be66e3` 묶음 A / `bb415fa` 묶음 B / `68d57e8` 묶음 C / `3a56643` 묶음 C 후속 / `5536652` 묶음 D, 본 커밋이 묶음 E). dev 머지 대기.
+- **변경 요약**: Step 3 매칭 PR — POST /api/match/invite 라우트(node:crypto 토큰 + 충돌 재시도 + inviteUrl 3-tier fallback) / /dashboard + InviteCard(Dialog 모달 + 클립보드 복사) / /invite/[token] 비인증 허용(5분기 검증) + JoinInvite(호스트 redirect/비로그인 CTA/게스트 입장) / useMatchStatus 훅(Realtime postgres_changes + 30s polling fallback) / HostWaitingView + WaitingForGameStart / /play/[matchId] 5단계 분기 통합. 부수 작업: buttonVariants를 server-safe 모듈로 분리.
 - **다음 액션 순서**:
-  1. **Step 3 매칭 PR** — `/dashboard` + 친구 초대 + `POST /api/match/invite` + `/invite/[token]` + invite_token 흐름
-  2. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달
-  3. **(main) 글로벌 헤더 PR** — `(main)/layout.tsx` 도입으로 `/play`, `/dashboard`, `/profile` 등에 UserMenu 일괄 마운트 여부 결정
-  4. **코드 리뷰 nit 후속** — placeholder Card 시멘틱 / "다음 PR" 카피 / LoginPage design token 통일 / `app/_components/` 폴더 컨벤션 가이드 (매칭 PR과 함께 처리 가능)
-  5. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터 (PR #9의 UNIQUE 제약으로 사전 작업 완료)
+  1. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달
+  2. **(main) 글로벌 헤더 PR** — `(main)/layout.tsx` 도입으로 `/play`, `/dashboard`, `/profile` 등에 UserMenu 일괄 마운트 여부 결정 (도입 시 `/dashboard` 임시 헤더 제거)
+  3. **`/play` 비참가자 가드 강화** — middleware는 인증만, RLS public_read=true. URL 추측 가드는 별도 PR (PR #7-D 묶음 D 분석에서 식별)
+  4. **invite 토큰 lazy cleanup** — 만료된 waiting 매치 자동 정리 (Step 4 cron 또는 매치 진입 시 lazy delete)
+  5. **코드 리뷰 nit 후속** — placeholder Card 시멘틱 / "다음 PR" 카피 / LoginPage design token 통일 / `app/_components/` 폴더 컨벤션 가이드 (프로필 PR과 함께 처리 가능)
+  6. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터 (PR #9의 UNIQUE 제약으로 사전 작업 완료)

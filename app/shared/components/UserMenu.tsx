@@ -13,7 +13,7 @@ import { AUTH_QUERY_KEY, useAuth } from "@/app/shared/hooks/useAuth";
 import { isProtectedPath } from "@/app/shared/lib/auth/protectedPaths";
 import { createClient } from "@/app/shared/lib/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   DropdownMenu,
   DropdownMenuContent,

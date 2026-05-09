@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { UserMenu } from "@/app/shared/components/UserMenu";
 import { useAuth } from "@/app/shared/hooks/useAuth";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Card,
   CardDescription,
@@ -77,14 +77,16 @@ function SignedInView() {
             </CardDescription>
           </CardHeader>
         </Card>
-        <Card aria-disabled="true" className="cursor-not-allowed opacity-60">
-          <CardHeader>
-            <CardTitle>대시보드</CardTitle>
-            <CardDescription>
-              준비중 — 친구 초대/매치 기록 페이지는 다음 PR에서 제공됩니다.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <Link href="/dashboard" className="block">
+          <Card className="transition-colors hover:bg-muted/50">
+            <CardHeader>
+              <CardTitle>대시보드</CardTitle>
+              <CardDescription>
+                친구를 초대해서 1:1 대전을 시작하세요.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
       </div>
     </div>
   );
