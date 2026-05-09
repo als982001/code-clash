@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { UserMenu } from "@/app/shared/components/UserMenu";
 import { useAuth } from "@/app/shared/hooks/useAuth";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Card,
   CardDescription,

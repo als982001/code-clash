@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { TInvitePageError } from "@/app/features/match/types/invite";
 import { isInviteExpired } from "@/app/features/match/utils/isInviteExpired";
 import { createClient } from "@/app/shared/lib/supabase/server";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 
 import JoinInvite from "./_components/JoinInvite";
 
@@ -21,8 +21,6 @@ export default async function InvitePage({ params }: IInvitePageProps) {
     .select("id, status, host_id, invite_expires_at")
     .eq("invite_token", token)
     .maybeSingle();
-
-  console.log("match", match);
 
   if (!match) {
     return <InviteErrorView reason="not_found" />;
