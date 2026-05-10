@@ -16,11 +16,12 @@ export default async function InvitePage({ params }: IInvitePageProps) {
 
   const { client } = await createClient();
 
-  const { data: match } = await client
-    .from("matches")
-    .select("id, status, host_id, invite_expires_at")
-    .eq("invite_token", token)
-    .maybeSingle();
+  // 매치 row를 직접 SELECT하면 새 RLS(host/participant 한정)에 막힌다.
+  // SECURITY DEFINER RPC로 우회하되, 반환 컬럼에서 invite_token은 제외되어 토큰 노출 없음.
+  const { data: matches } = await client.rpc("get_invite_match_by_token", {
+    p_token: token,
+  });
+  const match = matches?.[0];
 
   if (!match) {
     return <InviteErrorView reason="not_found" />;
@@ -41,12 +42,8 @@ export default async function InvitePage({ params }: IInvitePageProps) {
     return <InviteErrorView reason="expired" />;
   }
 
-  const { count } = await client
-    .from("match_participants")
-    .select("id", { count: "exact", head: true })
-    .eq("match_id", match.id);
-
-  if ((count ?? 0) >= 2) {
+  // participant_count는 RPC가 계산해서 함께 반환 (비로그인에서도 안내 정확).
+  if ((match.participant_count ?? 0) >= 2) {
     return <InviteErrorView reason="full" />;
   }
 
