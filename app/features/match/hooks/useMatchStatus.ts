@@ -16,6 +16,7 @@ interface IUseMatchStatusReturn {
   error: Error | null;
 }
 
+// matches row에서 동기화할 컬럼 목록. 초기 fetch / Realtime / 폴링 3곳에서 동일하게 쓰여 상수로 분리.
 const SELECT_COLUMNS =
   "id, status, host_id, invite_token, invite_expires_at, problem_id, start_time";
 
@@ -51,7 +52,8 @@ export function useMatchStatus({
     return createClient();
   }, []);
 
-  // Effect 1: 초기 fetch — mount 시 1회 select
+  // ── Effect 1: 초기 fetch ─────────────────────────────────────────
+  // 마운트 시 1회 select. Realtime 구독 전에 현재 상태를 즉시 화면에 띄우기 위함.
   useEffect(() => {
     let isMounted = true;
 
@@ -101,7 +103,10 @@ export function useMatchStatus({
     };
   }, [matchId, client]);
 
-  // Effect 2: Realtime postgres_changes 구독
+  // ── Effect 2: Realtime postgres_changes 구독 ───────────────────────
+  // matches 테이블에서 이 matchId의 row가 UPDATE될 때 자동으로 알림 받음.
+  // 송신자가 클라이언트가 아니라 Postgres 자체이므로 join API/submit API 등 어디서 변경됐든 모두 감지.
+  // 채널 이름에 "match-status:" prefix를 두어 broadcast 채널(`match:`)과 분리 (디버깅 용이성).
   useEffect(() => {
     let isMounted = true;
 
@@ -109,6 +114,8 @@ export function useMatchStatus({
       .channel(`match-status:${matchId}`)
       .on(
         "postgres_changes",
+        // filter 객체: event(어떤 변화) + schema/table(어디) + filter(어느 row).
+        // filter는 PostgREST 문법(eq=equals). 이 매치의 row만 받기 위해 id=eq.${matchId} 사용.
         {
           event: "UPDATE",
           schema: "public",
@@ -130,6 +137,7 @@ export function useMatchStatus({
           setError(null);
         },
       )
+      // .subscribe()로 채널 합류 시작. status는 SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED 중 하나.
       .subscribe((s) => {
         if (!isMounted) return;
 
@@ -143,7 +151,9 @@ export function useMatchStatus({
     };
   }, [matchId, client]);
 
-  // Effect 3: 폴링 fallback — 30초 간격 select (Realtime 연결 여부와 무관하게 유지)
+  // ── Effect 3: 폴링 fallback ────────────────────────────────────────
+  // Realtime이 끊겨도(WebSocket 일시 단절 등) 30초마다 fetch해서 상태를 보정.
+  // Realtime + 폴링 + 초기 fetch의 3중 redundancy로 매치 상태 동기화 보장.
   useEffect(() => {
     let isMounted = true;
 
