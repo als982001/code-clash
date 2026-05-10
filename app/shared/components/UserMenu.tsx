@@ -17,6 +17,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -133,7 +134,9 @@ export function UserMenu() {
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={8}>
-        <DropdownMenuLabel>{nickname ?? "사용자"}</DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{nickname ?? "사용자"}</DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={handleSignOut}
