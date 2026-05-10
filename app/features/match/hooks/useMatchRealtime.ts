@@ -45,8 +45,6 @@ export function useMatchRealtime({
   });
 
   useEffect(() => {
-    setIsSubscribed(false);
-
     const { client } = createClient();
 
     const channel = client.channel(`match:${matchId}`, {
@@ -75,9 +73,11 @@ export function useMatchRealtime({
         });
       })
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setIsSubscribed(true);
-        }
+        // 외부 시스템(채널)의 모든 상태 변화를 단일 callback에서 반영.
+        // SUBSCRIBED → true, CLOSED / CHANNEL_ERROR / TIMED_OUT → false.
+        // effect body 또는 cleanup에서 직접 setState하지 않는 이유:
+        // React 19+가 effect body 내 동기 setState를 cascading render로 보고 경고하기 때문.
+        setIsSubscribed(status === "SUBSCRIBED");
       });
 
     channelRef.current = channel;
@@ -85,7 +85,6 @@ export function useMatchRealtime({
     return () => {
       client.removeChannel(channel);
       channelRef.current = null;
-      setIsSubscribed(false);
     };
   }, [matchId]);
 
