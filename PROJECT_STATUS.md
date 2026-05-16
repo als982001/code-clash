@@ -7,7 +7,7 @@
 
 ## 한 줄 진단
 
-대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B(#10)에서 `/login`/`/auth/callback` 구현 + PR #11에서 익명 게스트 플로우 제거 + **PR #7-C(#12) dev 머지 완료** — middleware 라우트 가드 + AuthListener 전역 구독 + UserMenu 드롭다운 + 홈 화면 재작성 + PR #11 보안 후속 3건. **PR #7-D(예정 #13) `feature/step3-matching-invite` 브랜치 5커밋 — Step 3 매칭 PR**: 친구 초대 매칭 흐름(POST /api/match/invite + /dashboard + InviteCard) + /invite/[token] 비인증 진입 + useMatchStatus 훅(matches 실시간 동기화) + HostWaitingView/WaitingForGameStart + /play 5단계 분기 통합. 다음은 Step 3 프로필 PR.
+대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B(#10)에서 `/login`/`/auth/callback` 구현 + PR #11에서 익명 게스트 플로우 제거 + **PR #7-C(#12) dev 머지 완료** — middleware 라우트 가드 + AuthListener 전역 구독 + UserMenu 드롭다운 + 홈 화면 재작성 + PR #11 보안 후속 3건. **PR #7-D(#13) Step 3 매칭 dev 머지 완료**: 친구 초대 매칭 흐름(POST /api/match/invite + /dashboard + InviteCard) + /invite/[token] 비인증 진입 + useMatchStatus 훅(matches 실시간 동기화) + HostWaitingView/WaitingForGameStart + /play 5단계 분기 통합. **PR #14 dev 머지 완료(`8f7d600`)**: matches/match_participants/profiles RLS 좁힘(TO authenticated, anon 차단) + `get_invite_match_by_token` SECURITY DEFINER RPC 신설(invite_token 컬럼 미노출) + `/api/match/[matchId]/join`에 invite token 검증 + `admin.ts` service-role 클라이언트 신설(`service.ts`와 중복 — §D-2-a 후속) + useMatchRealtime cascading render fix + UserMenu base-ui Group wrapping fix + console.log 3줄 정리 + 화면 단위 코드 복기 주석 5곳. 다음은 §D-2 후속 정리 PR 또는 Step 3 프로필 PR.
 
 ---
 
@@ -153,6 +153,17 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 - `buttonVariants` server-safe 모듈 분리 (`components/ui/button-variants.ts`) — `"use client"` 파일에서 export된 함수가 server component에서 호출 불가능한 RSC 룰 우회
 - HomeClient의 "대시보드" 카드 활성화 (`<Link href="/dashboard"><Card />`)
 
+### Step 3 보안 강화 + 코드 복기 (PR #14)
+
+- **마이그레이션 `20260510_tighten_rls_for_invite_security.sql`** — `matches.public_read` → `matches_self_or_participant_read (TO authenticated, host_id = auth.uid() OR participant)`, `match_participants.match_read` → `match_participants_co_participant_read (TO authenticated, 자기 row OR 같은 매치 참가자)`, `profiles.public_read` → `profiles_authenticated_read (TO authenticated, USING true)`. anon이 invite_token, profiles, 다른 매치 row를 직접 SELECT하지 못하게 차단
+- **`get_invite_match_by_token(p_token text)` RPC 신설** — SECURITY DEFINER STABLE, anon+authenticated EXECUTE. 반환 컬럼에서 `invite_token` 제외(`id`, `status`, `host_id`, `invite_expires_at`, `participant_count`만). `/invite/[token]` 비로그인 페이지가 RLS 좁힘 후에도 토큰 검증 가능
+- **`/api/match/[matchId]/join`에 invite token 검증 추가** — body의 token이 DB의 `invite_token`과 일치할 때만 join 허용. RLS만으로 끝내지 않고 mutation 흐름 자체에 게이트
+- **`admin.ts` 신설** — `app/shared/lib/supabase/admin.ts` service-role 클라이언트 (`/api/match/[matchId]/join` 사용). 기존 `service.ts`와 역할 중복 — §D-2-a 후속 정리 대상
+- **`useMatchRealtime` cascading render fix** — effect body 내 동기 `setIsSubscribed` 호출 제거 → subscribe callback 1곳으로 통일. 부수 이득으로 채널 끊김(CLOSED / CHANNEL_ERROR / TIMED_OUT)도 정확히 반영
+- **`UserMenu` base-ui `MenuGroupRootContext` 누락 fix** — `DropdownMenuLabel`을 `DropdownMenuGroup`으로 래핑. 아바타 클릭 시 드롭다운 미표시 런타임 에러 해결
+- **`useMatchStatus.ts` 검증용 console.log 3줄 제거** (이전 세션 §B)
+- **코드 복기 주석 5곳** — `/auth/callback`, `/api/match/invite`, `/api/match/[matchId]/join`, `useMatchRealtime`, `useMatchStatus`. 시니어→주니어 톤 블록 단위, 동작 변경 없음
+
 ---
 
 ## 부분 구현 / 스텁 영역 🔄 ⏳
@@ -225,6 +236,18 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 - LoginPage `text-zinc-400` 하드코딩 vs HomeClient `text-muted-foreground` design token. LoginPage도 token으로 통일하면 다크/라이트 호환성 일관됨
 - `app/_components/` 폴더 컨벤션 가이드 추가 (home 전용 vs route별 `_components` 구분)
 
+### 8. ℹ️ `admin.ts` ↔ `service.ts` 중복 (§D-2-a 후속 PR 예정)
+
+- PR #14에서 `app/shared/lib/supabase/admin.ts` 신설 — `/api/match/[matchId]/join`에서 invite token 검증 + 참가자 추가 시 RLS 우회용으로 사용
+- 기존 `service.ts`의 `createServiceClient()`는 이미 싱글턴 캐시 + fail-fast 보강 완료 — 동일 역할
+- **결론**: `admin.ts` 제거하고 `/api/match/[matchId]/join`이 `createServiceClient()` 재사용 (별도 1커밋 fix, `docs/NEXT_SESSION.md` §D-2-a)
+
+### 9. ℹ️ `matches.participant_update` 정책에 `WITH CHECK` 누락 (§D-2-b 후속 PR 예정)
+
+- 현재 `participant_update` 정책은 USING만 있고 WITH CHECK가 없음
+- WITH CHECK 없으면 참가자가 임의 컬럼(예: `winner_id`, `host_id`)을 갱신해도 차단 못 함
+- **결론**: 허용 컬럼만 명시한 트리거/RPC 또는 `WITH CHECK (host_id = OLD.host_id AND ...)` 패턴 (`docs/NEXT_SESSION.md` §D-2-b)
+
 ---
 
 ## DB 상태
@@ -244,9 +267,9 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 ### RLS 정책 (15개)
 
 ```
-match_participants  → match_read (SELECT, true) / self_insert (user_id=uid) / self_delete (user_id=uid)
-matches             → public_read (true) / anon_insert (true) / participant_update / participant_delete_waiting
-profiles            → public_read (true) / self_insert (id=uid) / self_update (id=uid)
+match_participants  → match_participants_co_participant_read (TO authenticated, 자기 row OR 같은 매치 참가자, PR #14) / self_insert (user_id=uid) / self_delete (user_id=uid)
+matches             → matches_self_or_participant_read (TO authenticated, host_id=uid OR participant, PR #14) / anon_insert (true) / participant_update / participant_delete_waiting
+profiles            → profiles_authenticated_read (TO authenticated, USING true — anon 차단, PR #14) / self_insert (id=uid) / self_update (id=uid)
 submissions         → match_participant_read / self_insert (user_id=uid)
 problems            → public_read (SELECT, true)
 test_cases          → visible_read (SELECT, is_hidden = false)
@@ -261,6 +284,7 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 - `public.handle_new_user()` — profiles 자동 생성
 - `public.rls_auto_enable()` — 용도 미상 (`20260412_minimal_rls.sql` 외 어디서도 참조 없음 — 잔재 가능성)
+- `public.get_invite_match_by_token(p_token text)` — SECURITY DEFINER STABLE, anon+authenticated EXECUTE. `/invite/[token]` 비인증 검증용. 반환 컬럼에서 `invite_token` 제외 (`id`, `status`, `host_id`, `invite_expires_at`, `participant_count`만) (PR #14)
 
 ### `matches` 추가 컬럼 (PR #6 선반영, PR #8에서 사용 예정)
 
@@ -272,18 +296,19 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마이그레이션 이력 (`supabase/migrations/`)
 
-| 파일                                        | 내용                                                                                                         |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `20260412_minimal_rls.sql`                  | 최소 RLS (matches/match_participants/submissions)                                                            |
-| `20260425_handle_new_user_trigger.sql`      | profiles 자동 생성 트리거 + 함수                                                                             |
-| `20260425_backfill_missing_profiles.sql`    | 누락 익명 유저 백필                                                                                          |
-| `20260425_profiles_rls_policies.sql`        | profiles `public_read` + `self_update`                                                                       |
-| `20260425_match_invite_columns.sql`         | matches invite 컬럼 3종 + 부분 인덱스                                                                        |
-| `20260425_pr5_review_index_cleanup.sql`     | UNIQUE 제약과 중복된 인덱스 제거 (Code Reviewer 피드백)                                                      |
-| `20260425_pr7a_profiles_insert_policy.sql`  | profiles `self_insert` 정책 (Code Reviewer Critical fix)                                                     |
-| `20260426_rls_problems_test_cases.sql`      | problems/test_cases/ai_reviews RLS 3종 (히든은 service role 전용)                                            |
-| `20260426_seed_problems.sql`                | 9 problems + 43 test_cases 멱등 시드 (SoT 확보)                                                              |
-| `20260427_test_cases_unique_constraint.sql` | `test_cases (problem_id, input, is_hidden)` UNIQUE 제약 + `is_hidden NOT NULL` (DO 블록 멱등, I-5 follow-up) |
+| 파일                                           | 내용                                                                                                                                       |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20260412_minimal_rls.sql`                     | 최소 RLS (matches/match_participants/submissions)                                                                                          |
+| `20260425_handle_new_user_trigger.sql`         | profiles 자동 생성 트리거 + 함수                                                                                                           |
+| `20260425_backfill_missing_profiles.sql`       | 누락 익명 유저 백필                                                                                                                        |
+| `20260425_profiles_rls_policies.sql`           | profiles `public_read` + `self_update`                                                                                                     |
+| `20260425_match_invite_columns.sql`            | matches invite 컬럼 3종 + 부분 인덱스                                                                                                      |
+| `20260425_pr5_review_index_cleanup.sql`        | UNIQUE 제약과 중복된 인덱스 제거 (Code Reviewer 피드백)                                                                                    |
+| `20260425_pr7a_profiles_insert_policy.sql`     | profiles `self_insert` 정책 (Code Reviewer Critical fix)                                                                                   |
+| `20260426_rls_problems_test_cases.sql`         | problems/test_cases/ai_reviews RLS 3종 (히든은 service role 전용)                                                                          |
+| `20260426_seed_problems.sql`                   | 9 problems + 43 test_cases 멱등 시드 (SoT 확보)                                                                                            |
+| `20260427_test_cases_unique_constraint.sql`    | `test_cases (problem_id, input, is_hidden)` UNIQUE 제약 + `is_hidden NOT NULL` (DO 블록 멱등, I-5 follow-up)                               |
+| `20260510_tighten_rls_for_invite_security.sql` | matches/match_participants/profiles RLS 좁힘(TO authenticated, anon 차단) + `get_invite_match_by_token` SECURITY DEFINER RPC 신설 (PR #14) |
 
 ---
 
@@ -318,13 +343,15 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
-- **일자**: 2026-05-09
-- **시점**: PR #7-D (예정 #13) `feature/step3-matching-invite` 브랜치 5커밋 (`8be66e3` 묶음 A / `bb415fa` 묶음 B / `68d57e8` 묶음 C / `3a56643` 묶음 C 후속 / `5536652` 묶음 D, 본 커밋이 묶음 E). dev 머지 대기.
-- **변경 요약**: Step 3 매칭 PR — POST /api/match/invite 라우트(node:crypto 토큰 + 충돌 재시도 + inviteUrl 3-tier fallback) / /dashboard + InviteCard(Dialog 모달 + 클립보드 복사) / /invite/[token] 비인증 허용(5분기 검증) + JoinInvite(호스트 redirect/비로그인 CTA/게스트 입장) / useMatchStatus 훅(Realtime postgres_changes + 30s polling fallback) / HostWaitingView + WaitingForGameStart / /play/[matchId] 5단계 분기 통합. 부수 작업: buttonVariants를 server-safe 모듈로 분리.
+- **일자**: 2026-05-16
+- **시점**: PR #14 dev 머지 완료 (`8f7d600`, squash). 보안 RLS 좁힘 + `get_invite_match_by_token` RPC + `/api/match/[matchId]/join` invite token 검증 + `admin.ts` 신설 + `useMatchRealtime` cascading render fix + `UserMenu` base-ui Group fix + console.log 3줄 정리 + 화면 단위 코드 복기 주석 5곳. 워킹 트리 clean.
+- **변경 요약**: PROJECT_STATUS — 한 줄 진단에 PR #14 라인 추가 / "Step 3 보안 강화 + 코드 복기 (PR #14)" 구현 완료 블록 추가 / DB 상태 RLS 정책 표 3행(matches/match_participants/profiles) 새 정책명으로 교체 / 함수에 `get_invite_match_by_token` 추가 / 마이그레이션 이력에 `20260510_tighten_rls_for_invite_security.sql` 행 추가 / 알려진 결함에 §8 `admin.ts` ↔ `service.ts` 중복 + §9 `matches.participant_update` WITH CHECK 누락 추가.
 - **다음 액션 순서**:
-  1. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달
-  2. **(main) 글로벌 헤더 PR** — `(main)/layout.tsx` 도입으로 `/play`, `/dashboard`, `/profile` 등에 UserMenu 일괄 마운트 여부 결정 (도입 시 `/dashboard` 임시 헤더 제거)
-  3. **`/play` 비참가자 가드 강화** — middleware는 인증만, RLS public_read=true. URL 추측 가드는 별도 PR (PR #7-D 묶음 D 분석에서 식별)
-  4. **invite 토큰 lazy cleanup** — 만료된 waiting 매치 자동 정리 (Step 4 cron 또는 매치 진입 시 lazy delete)
-  5. **코드 리뷰 nit 후속** — placeholder Card 시멘틱 / "다음 PR" 카피 / LoginPage design token 통일 / `app/_components/` 폴더 컨벤션 가이드 (프로필 PR과 함께 처리 가능)
-  6. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터 (PR #9의 UNIQUE 제약으로 사전 작업 완료)
+  1. **§D-2 후속 정리 PR** — `admin.ts` 제거하고 `createServiceClient()` 재사용(§D-2-a) / `matches.participant_update` `WITH CHECK` 추가(§D-2-b) / `/api/match/route.ts` dead code 정리(§D-2-c) / profiles RLS 더 좁힘 검토(§D-2-d). 1~2 PR로 묶기 가능
+  2. **§C Realtime 채널 구조 분석** — PR #14 주석으로 일부 흡수됐으나 구조 분석(채널 책임/cleanup 순서/polling fallback 신뢰성)은 미수행. 코드 변경 없는 노트 또는 메모리 기록
+  3. **Step 3 프로필 PR (예정 #15)** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달
+  4. **(main) 글로벌 헤더 PR** — `(main)/layout.tsx` 도입으로 `/play`, `/dashboard`, `/profile` 등에 UserMenu 일괄 마운트 여부 결정 (도입 시 `/dashboard` 임시 헤더 제거)
+  5. **`/play` 비참가자 가드 강화** — PR #14 RLS 좁힘으로 자연 해소 가능. 검증만 필요
+  6. **invite 토큰 lazy cleanup** — 만료된 waiting 매치 자동 정리 (Step 4 cron 또는 매치 진입 시 lazy delete)
+  7. **코드 리뷰 nit 후속** — placeholder Card 시멘틱 / "다음 PR" 카피 / LoginPage design token 통일 / `app/_components/` 폴더 컨벤션 가이드 (프로필 PR과 함께 처리 가능)
+  8. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음): `20260426_seed_problems.sql`의 `WHERE NOT EXISTS` 패턴을 `ON CONFLICT (problem_id, input, is_hidden) DO NOTHING`로 리팩터 (PR #9의 UNIQUE 제약으로 사전 작업 완료)
