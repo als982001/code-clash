@@ -351,14 +351,17 @@ export async function POST(
   }
 
   // match_participants에 점수 기록
-  const { error: scoreError } = await client
+  // RLS deny / 정책 미스매치 등으로 affected row가 0이면 silently 통과되는 회귀가 있었으므로
+  // data를 select해서 0건 확인 가드를 둔다.
+  const { data: scoreUpdated, error: scoreError } = await client
     .from("match_participants")
     .update({ score })
     .eq("match_id", matchId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select("id");
 
-  if (scoreError) {
-    console.error(scoreError);
+  if (scoreError || !scoreUpdated || scoreUpdated.length === 0) {
+    if (scoreError) console.error(scoreError);
 
     return NextResponse.json(
       { error: "점수 저장에 실패했습니다." },
