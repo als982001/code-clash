@@ -394,8 +394,13 @@ export async function POST(
       submissions: allSubmissions,
     });
 
-    // Race condition 방어: ongoing인 경우에만 finished로 변경
-    const { data: finishedMatch } = await client
+    // Race condition 방어: ongoing 일 때만 finished 로 변경.
+    // service-role 로 RLS 우회 — 인증된 참가자가 PostgREST PATCH 로 자기 row 의
+    // status='finished', winner_id=자기, end_time=now 를 직접 박는 winner write primitive 를
+    // 막기 위해 matches.participant_update 정책을 DROP 하고 인가 사용자 UPDATE 를
+    // default deny 로 되돌렸다 (`20260516_fix_matches_winner_write_primitive.sql`).
+    // matches finalize 는 서버 단독 경로로만 가능. race window 가드 `.eq("status", "ongoing")` 는 그대로.
+    const { data: finishedMatch } = await serviceClient
       .from("matches")
       .update({
         status: "finished",
