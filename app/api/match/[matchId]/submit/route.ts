@@ -350,15 +350,21 @@ export async function POST(
     );
   }
 
-  // match_participants에 점수 기록
-  const { error: scoreError } = await client
+  // match_participants에 점수 기록 — service-role 로 RLS 우회.
+  // anon/authenticated 가 PostgREST PATCH 로 자기 row 의 score 를 임의 값으로 덮어쓰는
+  // score write primitive 를 막기 위해 match_participants 의 인가 사용자 UPDATE 는
+  // RLS default deny 로 되돌렸다 (`20260516_fix_match_participants_score_write_primitive.sql`).
+  // score 갱신은 서버 단독 경로로만 가능. affected row 0 가드는 그대로 둬서
+  // 향후 정책 미스매치 회귀가 다시 발생해도 silent fail 없이 500 으로 드러난다.
+  const { data: scoreUpdated, error: scoreError } = await serviceClient
     .from("match_participants")
     .update({ score })
     .eq("match_id", matchId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select("id");
 
-  if (scoreError) {
-    console.error(scoreError);
+  if (scoreError || !scoreUpdated || scoreUpdated.length === 0) {
+    if (scoreError) console.error(scoreError);
 
     return NextResponse.json(
       { error: "점수 저장에 실패했습니다." },
@@ -388,8 +394,13 @@ export async function POST(
       submissions: allSubmissions,
     });
 
-    // Race condition 방어: ongoing인 경우에만 finished로 변경
-    const { data: finishedMatch } = await client
+    // Race condition 방어: ongoing 일 때만 finished 로 변경.
+    // service-role 로 RLS 우회 — 인증된 참가자가 PostgREST PATCH 로 자기 row 의
+    // status='finished', winner_id=자기, end_time=now 를 직접 박는 winner write primitive 를
+    // 막기 위해 matches.participant_update 정책을 DROP 하고 인가 사용자 UPDATE 를
+    // default deny 로 되돌렸다 (`20260516_fix_matches_winner_write_primitive.sql`).
+    // matches finalize 는 서버 단독 경로로만 가능. race window 가드 `.eq("status", "ongoing")` 는 그대로.
+    const { data: finishedMatch } = await serviceClient
       .from("matches")
       .update({
         status: "finished",

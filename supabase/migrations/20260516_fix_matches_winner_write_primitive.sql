@@ -1,0 +1,22 @@
+-- winner write primitive fix — matches.participant_update 정책 제거
+--
+-- 배경: 같은 일자에 도입된 `20260516_tighten_matches_participant_update.sql` 이
+-- participant_update 정책(WITH CHECK: status ∈ {ongoing, finished} + winner_id 는
+-- NULL 또는 같은 매치 참가자) + prevent_protected_matches_update 트리거를 도입했다.
+-- 그러나 트리거 보호 컬럼 목록에서 status / winner_id / end_time 을 의도적으로
+-- 제외하여, 인증된 매치 참가자가 PostgREST PATCH 로 자기 row 의 status='finished',
+-- winner_id=자기, end_time=now 를 직접 박을 수 있는 winner write primitive 가
+-- 노출되어 있었다 (HIGH 보안 결함, 2차 외부 리뷰 발견).
+-- score write primitive (§D-2-d, 9bbe908) 와 완벽한 대칭 결함.
+--
+-- 해결: participant_update 정책 자체를 DROP 하여 matches 의 인가 사용자 UPDATE 를
+-- default deny 로 되돌린다. submit/route.ts 의 matches finalize UPDATE 는 같은
+-- 라우트에서 이미 만들고 있던 service-role 클라이언트로 전환되어 RLS 를 우회한다.
+-- BEFORE UPDATE 트리거(prevent_protected_matches_update) 는 그대로 유지 —
+-- service-role 흐름은 auth.role() = 'service_role' 분기로 우회하고, 인가 사용자
+-- 흐름은 RLS 가 먼저 deny 하므로 트리거에 도달하지 않는다.
+--
+-- 운영 적용 순서: 이 마이그레이션 적용 직후 PR #16 머지(submit 라우트 코드 변경 포함).
+-- 적용 전 코드 머지 시 모든 submit 의 matches finalize 가 RLS deny 로 매치 종료 불가.
+
+DROP POLICY IF EXISTS "participant_update" ON public.matches;

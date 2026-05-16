@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 // requireUser: 쿠키 세션을 서버에서 검증해 user를 보장하는 헬퍼.
 import { requireUser } from "@/app/shared/lib/auth/requireUser";
-// admin client: service_role 키로 RLS를 우회한다.
-// matches RLS가 host/participant 한정으로 좁혀진 후로, 게스트는 자기 매치가 아닌 row를 SELECT할 수 없어
-// 토큰 검증/정원 체크/INSERT/UPDATE를 라우트가 직접 수행하려면 RLS 우회가 필요하다.
-// 라우트 내부에서 인증(requireUser) + 토큰 검증을 명시적으로 하므로 RLS 우회는 보안상 안전.
-import { createAdminClient } from "@/app/shared/lib/supabase/admin";
+// service client: service_role 키 RLS 우회 싱글턴 (fail-fast).
+// matches RLS가 host/participant 한정으로 좁혀진 후 토큰 검증/정원 체크/INSERT/UPDATE를
+// 라우트가 직접 수행하려면 RLS 우회가 필요하다. requireUser + 토큰 검증을 사전에 통과한 후에만 사용.
+import { createServiceClient } from "@/app/shared/lib/supabase/service";
 
 /**
  * 대전 방에 참가한다. 2명이 모이면 자동으로 게임을 시작한다.
@@ -35,7 +36,18 @@ export async function POST(
   };
   const requestToken = body?.token;
 
-  const { client } = createAdminClient();
+  let client: SupabaseClient;
+
+  try {
+    client = createServiceClient().client;
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json(
+      { error: "초대 검증 서버 설정이 누락되었습니다 (E_SERVICE)." },
+      { status: 500 },
+    );
+  }
 
   // ── match 조회 + 상태 검증 ────────────────────────────────────────
   const { data: match, error: matchError } = await client
