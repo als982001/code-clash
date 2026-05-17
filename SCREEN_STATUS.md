@@ -75,7 +75,12 @@
 ## 마지막 갱신
 
 - **일자**: 2026-05-17
-- **PR**: A PR `feature/step3-profile` (commit `1190a2f`, dev 머지 대기) — **Step 3 프로필 페이지 도입. Step 3 100% 종료.**
+- **PR**: A PR #18 `feature/step3-profile` (4커밋 push 완료, dev 머지 대기) — **Step 3 프로필 페이지 도입. Step 3 100% 종료.** URL: https://github.com/als982001/code-clash/pull/18
+- **커밋 4건**:
+  - `1190a2f` — feat(profile): Step 3 프로필 페이지 + 닉네임 편집 + fallback 모달 (13 files, +1045/-1)
+  - `d19f020` — docs: SCREEN_STATUS / PROJECT_STATUS 동기화 (2 files, +105/-78)
+  - `1da4089` — 테스트용 코드 원복 (사용자 직접, ProfileView.tsx 1줄)
+  - `ef164cb` — fix(profile): PR #18 P3 review fix (2 files, +7/-2)
 - **변경 요약**:
   - **신규 라우트 2개** — `/profile/[userId]` (서버 컴포넌트 + ProfileView/ProfileEditDialog/NicknameFallbackDialog) + `/profile/me` (본인 redirect)
   - **신규 API 1개** — `PATCH /api/profile/me` (nickname/bio whitelist + UNIQUE 23505 → 409 정밀 매핑 + RLS silent fail 가드)
@@ -88,6 +93,9 @@
   - W-2: ProfileEditDialog 닉네임 input `maxLength` 32 → 20 (validateNickname 상한과 일치)
 - **Lint fix**:
   - NicknameFallbackDialog `useState(false) + useEffect(setOpen(true))` → `useState` lazy initializer로 통합 (`react-hooks/set-state-in-effect` 위반 해소, 렌더 2회 → 1회 단축)
+- **P3 review fix (커밋 `ef164cb`, 다른 세션에서 발견)**:
+  - P3-1: `get_profile_stats` RPC 의 `draws` FILTER 에서 중복 `status = 'finished'` 조건 제거. JOIN ON 에서 이미 거름 → FILTER 내부 같은 조건은 redundant. 동작 영향 없음, 가독성↑. 마이그레이션 파일 정정만 했고 DB 함수 본문은 사용자가 Studio 에서 SQL 재실행 시 갱신 (CREATE OR REPLACE, 미실행해도 동작 동일)
+  - P3-2: ProfileEditDialog 성공 분기에 `isMountedRef` 가드 1줄 추가. CODE_CONVENTIONS "async + setState 가드 패턴" 일관 적용 (실패 분기 2회 vs 성공 분기 0회 불일치 해소)
 - **회귀 면적**:
   - middleware 보호 prefix `/profile/me` → `/profile` 확장 — `isProtectedPath`가 `pathname === prefix || pathname.startsWith(prefix + "/")` 매칭이라 `/profilable-thing` 우연 매칭 위험 없음
   - RLS 정책 변경 없음 (RPC만 추가)
