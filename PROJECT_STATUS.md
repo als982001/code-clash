@@ -48,14 +48,15 @@
 ```
 app/
 ├── (main)/
-│   ├── play/[matchId]/page.tsx   ✅  매치 진행 + 5단계 분기 (loading/error/null/waiting+host/waiting+게스트/ongoing|finished, PR #7-D)
-│   ├── play/[matchId]/_components/HostWaitingView.tsx       ✅  호스트 대기 화면 (URL 복사 + 만료 분기 + Realtime 안내, PR #7-D)
-│   ├── play/[matchId]/_components/WaitingForGameStart.tsx   ✅  비호스트 race window 스피너 (PR #7-D)
+│   ├── layout.tsx                ✅  글로벌 sticky 헤더 (h-14, z-40, backdrop-blur) + <main flex-1> wrapper, <UserMenu /> 일괄 마운트 (B PR)
 │   ├── result/[matchId]/         ⏳  빈 디렉토리 (결과는 /play 안에서 처리 중)
-│   ├── dashboard/page.tsx        ✅  친구 초대 카드 (PR #7-D)
+│   ├── dashboard/page.tsx        ✅  친구 초대 카드 (PR #7-D, B PR에서 임시 헤더 + 외곽 wrapper 제거)
 │   ├── dashboard/_components/InviteCard.tsx ✅  POST /api/match/invite → Dialog (PR #7-D)
 │   ├── leaderboard/              ⏳  빈 디렉토리 (장기)
-│   └── profile/[userId]/         ⏳  빈 디렉토리 (Step 3 프로필 PR 예정)
+│   └── profile/[userId]/         ⏳  빈 디렉토리 (Step 3 프로필 PR 예정 — 글로벌 헤더 자동 적용)
+├── play/[matchId]/page.tsx       ✅  매치 진행 + 5단계 분기. **B PR에서 (main) 그룹 밖으로 이전 — Monaco 풀스크린 보존을 위해 글로벌 헤더 미적용. URL은 라우트 그룹과 무관으로 동일** (PR #7-D + B PR)
+├── play/[matchId]/_components/HostWaitingView.tsx       ✅  호스트 대기 화면 (URL 복사 + 만료 분기 + Realtime 안내, PR #7-D + B PR 이전)
+├── play/[matchId]/_components/WaitingForGameStart.tsx   ✅  비호스트 race window 스피너 (PR #7-D + B PR 이전)
 ├── (auth)/
 │   ├── layout.tsx                ✅  풀스크린 레이아웃 (PR #7-B)
 │   └── login/
@@ -76,7 +77,7 @@ app/
 │   ├── problems/[problemId]/     ✅  문제 단건 + requireUser (PR #7-C)
 │   └── ai/                       ⏳  빈 디렉토리 (Gemini 리뷰 API 미구현)
 ├── _components/
-│   └── HomeClient.tsx            ✅  홈 페이지 client view — UserMenu 헤더 + 분기 + 매치 placeholder + 대시보드 카드 활성화 (PR #7-C/#7-D)
+│   └── HomeClient.tsx            ✅  홈 페이지 client view — UserMenu 헤더(B PR에서 글로벌 헤더와 동일 className으로 통일) + 분기 + 매치 placeholder + 대시보드 카드 활성화 (PR #7-C/#7-D + B PR)
 ├── features/
 │   ├── editor/                   ✅  CodeEditor + EditorPanel + ResultPanel + types
 │   ├── match/                    ✅  MatchStatusBar + SoundToggle + 4 hooks (Realtime/Sounds/Timer/Status) + utils (createInviteToken/isInviteExpired) + types/invite
@@ -86,7 +87,7 @@ app/
 │   ├── components/
 │   │   ├── QueryProvider.tsx     ✅  staleTime 60s + retry 1 글로벌 + AuthListener 마운트 (PR #7-C)
 │   │   ├── AuthListener.tsx      ✅  onAuthStateChange 전역 단일 구독 (PR #7-C)
-│   │   └── UserMenu.tsx          ✅  로그인/비로그인 분기 + Avatar 드롭다운 + 로그아웃 (PR #7-C)
+│   │   └── UserMenu.tsx          ✅  로그인/비로그인 분기 + Avatar 드롭다운 + 로그아웃. **마운트 지점 2곳**: HomeClient (홈) + (main)/layout.tsx (글로벌 헤더) (PR #7-C + B PR)
 │   ├── hooks/useAuth             ✅  단일 진입점 + AUTH_QUERY_KEY export (PR #7-C)
 │   ├── lib/
 │   │   ├── auth/
@@ -379,17 +380,16 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
-- **일자**: 2026-05-16
-- **시점**: PR #16 (`feature/d2-followup-cleanup`) — dev 머지 대기. §D-2 후속 정리 묶음 + score silent fail 회귀 fix + 외부 리뷰 1차(score primitive) fix + **외부 리뷰 2차(winner primitive) fix** (총 변경 8건).
+- **일자**: 2026-05-17
+- **시점**: B PR (`feature/main-global-header`) — `(main)` 라우트 그룹 글로벌 헤더 도입. **화면 추가 없음, 인프라/라우트 구조 변경**. layout 신규 1 + `/play` 디렉토리 이전 3 (git mv 히스토리 보존) + `/dashboard` 임시 헤더 + 외곽 wrapper 제거 + 홈 헤더 className 글로벌 통일 (W-1) + layout wrapper를 `<main>`으로 승격 (W-2). middleware/RLS/auth/API 영역 변경 없음.
 - **변경 요약**: PROJECT*STATUS — 한 줄 진단에 PR #16 라인 추가 / "§D-2 후속 정리 + 회귀 fix (PR #16)" 구현 완료 블록 추가 / 앱 구조에서 `api/match/route.ts` 행 제거 + `supabase/admin.ts` 노트 갱신 / DB 상태 테이블 row 카운트 실측 반영(matches 16 / match_participants 26 / submissions 2) / 정책 수 16개로 갱신 / RLS 정책 표에서 matches.participant_update(WITH CHECK) + match_participants.self_update 추가 / 트리거 + 함수에 `prevent_protected_matches_update` / `prevent_protected_match_participants_update` 2종 추가 / 마이그레이션 이력에 `20260516*\*`2건 추가 / 알려진 결함 §8·§9를 ✅ Resolved (PR #16)로 전환 + §10(score silent fail) ✅ Resolved 추가 + §11 후속 정리 후보 추가 / 외부 리뷰 발견 score write primitive fix —`self_update` 정책 DROP + submit 라우트의 score 갱신을 service-role 로 전환 (`20260516_fix_match_participants_score_write_primitive.sql`+`submit/route.ts:356`) / **외부 리뷰 2차 발견 winner write primitive fix** — `participant_update`정책 DROP +`submit/route.ts:399`의 matches finalize UPDATE 를 같은 라우트의`serviceClient` 로 전환 (`20260516_fix_matches_winner_write_primitive.sql`+`submit/route.ts:399`)
 - **운영 적용 주의**: Supabase 마이그레이션 2개를 `BEGIN/COMMIT`으로 묶어 Studio SQL Editor에서 한 번에 실행 → `schema_migrations` 수동 INSERT (또는 `supabase db push`) → 코드 배포 순서 엄수. 코드만 먼저 배포되면 모든 submit이 새 가드로 500 반환. PR #16 후속 커밋의 마이그레이션(`...score_write_primitive.sql`)도 동일 패턴으로 Studio 에 적용 — `DROP POLICY IF EXISTS "self_update" ON public.match_participants;` 한 줄. 트랜잭션 묶음 불필요. **단, 이 DROP 적용 전에 submit 라우트 코드를 머지하면 모든 submit 요청이 0 rows 가드에 걸려 500 (service-role 우회 흐름이 정착하기 전 인가 사용자 UPDATE 가 deny 됨). 마이그레이션 → 코드 머지 순서 동일 엄수.** PR #16 의 두 번째 후속 커밋 마이그레이션(`...winner_write_primitive.sql`) 도 동일 패턴으로 Studio 에 적용 — `DROP POLICY IF EXISTS "participant_update" ON public.matches;` 한 줄. 트랜잭션 묶음 불필요. **단, 이 DROP 적용 전에 submit 라우트 코드를 머지하면 matches finalize 가 RLS deny 로 매치 종료 불가**.
 - **다음 액션 순서**:
-  1. **PR #16 코드 리뷰 → 사용자 확인 → 커밋 → push → PR 생성 → Studio 마이그레이션 적용 → 머지** (현재 단계)
-  2. **§C Realtime 채널 구조 분석** — PR #14 주석으로 일부 흡수됐으나 구조 분석(채널 책임/cleanup 순서/polling fallback 신뢰성)은 미수행. 코드 변경 없는 노트 또는 메모리 기록 (사용자 요청 살아있음)
-  3. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달
-  4. **(main) 글로벌 헤더 PR** — `(main)/layout.tsx` 도입으로 `/play`, `/dashboard`, `/profile` 등에 UserMenu 일괄 마운트 (도입 시 `/dashboard` 임시 헤더 제거)
-  5. **§D-2 후속 정리 후보 (PR #16 리뷰 발견)** — `match_participants.self_insert`/`self_delete`의 `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화
-  6. **`/play` 비참가자 가드 강화** — PR #14 RLS 좁힘으로 자연 해소 가능. 검증만 필요
-  7. **invite 토큰 lazy cleanup** — 만료된 waiting 매치 자동 정리 (Step 4 cron 또는 매치 진입 시 lazy delete)
-  8. **코드 리뷰 nit 후속** — placeholder Card 시멘틱 / "다음 PR" 카피 / LoginPage design token 통일 / `app/_components/` 폴더 컨벤션 가이드 (프로필 PR과 함께 처리 가능)
-  9. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음)
+  1. **B PR 커밋 → push → PR 생성 → 머지** (현재 단계)
+  2. **Step 3 프로필 PR** — `/profile/[userId]` + `/profile/me` + 닉네임 편집 + 닉네임 3차 fallback 모달 (글로벌 헤더 자동 적용)
+  3. **§C Realtime 채널 구조 분석** — PR #14 주석으로 일부 흡수됐으나 구조 분석(채널 책임/cleanup 순서/polling fallback 신뢰성)은 미수행. 코드 변경 없는 노트 또는 메모리 기록 (사용자 요청 살아있음)
+  4. **§D-2 후속 정리 후보 (PR #16 리뷰 발견)** — `match_participants.self_insert`/`self_delete`의 `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화
+  5. **`/play` 비참가자 가드 강화** — PR #14 RLS 좁힘으로 자연 해소 가능. 검증만 필요
+  6. **invite 토큰 lazy cleanup** — 만료된 waiting 매치 자동 정리 (Step 4 cron 또는 매치 진입 시 lazy delete)
+  7. **코드 리뷰 nit 후속** — placeholder Card 시멘틱 / "다음 PR" 카피 / LoginPage design token 통일 / `app/_components/` 폴더 컨벤션 가이드 (프로필 PR과 함께 처리 가능)
+  8. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음)

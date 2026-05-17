@@ -26,8 +26,8 @@ import type {
 import ProblemPanel from "@/app/features/problem/components/ProblemPanel";
 import type { IProblem } from "@/app/features/problem/types";
 import { useAuth } from "@/app/shared/hooks/useAuth";
-import HostWaitingView from "@/app/(main)/play/[matchId]/_components/HostWaitingView";
-import WaitingForGameStart from "@/app/(main)/play/[matchId]/_components/WaitingForGameStart";
+import HostWaitingView from "@/app/play/[matchId]/_components/HostWaitingView";
+import WaitingForGameStart from "@/app/play/[matchId]/_components/WaitingForGameStart";
 
 /** 대전 제한 시간 (초) - 15분 */
 const MATCH_DURATION_SECONDS = 900;
