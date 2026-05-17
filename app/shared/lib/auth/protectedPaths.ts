@@ -6,7 +6,9 @@ export const PROTECTED_PREFIXES = [
   "/play",
   "/result",
   "/dashboard",
-  "/profile/me",
+  // /profile 전체를 가드 — /profile/me + /profile/[userId] 모두 SSR 단계에서 비로그인 차단.
+  // (Step 3 PR #18: 타인 프로필도 로그인 후 진입 정책)
+  "/profile",
 ] as const;
 
 /**
