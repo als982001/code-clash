@@ -68,7 +68,7 @@ export function ProfileView({ profile, stats, isMe }: IProps) {
 
   const { initial } = getAvatarInitial({ nickname: profile.nickname });
 
-  const showFallbackDialog = isMe && !isAuto;
+  const showFallbackDialog = isMe && isAuto;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 sm:p-6">
