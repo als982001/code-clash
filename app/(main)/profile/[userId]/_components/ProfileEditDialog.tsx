@@ -140,6 +140,10 @@ export function ProfileEditDialog({ profile, open, onOpenChange }: IProps) {
       }
 
       // 성공: useAuth 갱신 → 헤더(UserMenu)/페이지 동시 동기화 + Dialog 닫기.
+      // async + setState 가드 패턴 일관 적용 (CODE_CONVENTIONS). 실제 setState는 finally의
+      // setIsSubmitting만이지만 onOpenChange가 부모 setState를 트리거하므로 가드 위치 권장.
+      if (!isMountedRef.current) return;
+
       queryClient.invalidateQueries({ queryKey: AUTH_QUERY_KEY });
       router.refresh();
       toast.success("프로필을 저장했어요");
