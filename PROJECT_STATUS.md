@@ -7,7 +7,7 @@
 
 ## 한 줄 진단
 
-**Step 3 100% 종료 (PR #18 dev 머지 완료, `386a406`). §C Realtime 채널 구조 분석 노트 작성 완료 (`docs/notes/realtime-channels.md`, 2026-05-30)**. 프로필 페이지(`/profile/[userId]` + `/profile/me` + ProfileEditDialog + NicknameFallbackDialog) + PATCH `/api/profile/me` + `get_profile_stats(uuid)` SECURITY DEFINER STABLE RPC(matches/match_participants RLS 우회로 타인 전적 집계) + middleware `/profile` prefix 일반화(비로그인 전체 차단). Code Review fix 2건 + lint fix 1건(`react-hooks/set-state-in-effect` → `useState` lazy initializer) + 다른 세션 PR 리뷰의 P3 review fix 2건(SQL redundant filter 제거 + 성공 분기 isMountedRef 가드) 동일 PR에 반영. 다음은 §C Realtime 채널 구조 분석 또는 Step 4(결과 + AI 리뷰) 진입.
+**Step 3 100% 종료 (PR #18 dev 머지 완료, `386a406`). §C Realtime 채널 구조 분석 노트 작성 완료 (`docs/notes/realtime-channels.md`, 2026-05-30). Step 4-A `/result/[matchId]` 결과 페이지 PR (브랜치 `feature/step4a-result-page`) 구현 완료 — server component + Promise.all + Shiki SSR + RLS 자연 게이트, /play finished 배너에 "결과 자세히 보기" Link 추가. AI 리뷰는 Step 4-B, MMR은 Phase 4.5로 분리**. 프로필 페이지(`/profile/[userId]` + `/profile/me` + ProfileEditDialog + NicknameFallbackDialog) + PATCH `/api/profile/me` + `get_profile_stats(uuid)` SECURITY DEFINER STABLE RPC(matches/match_participants RLS 우회로 타인 전적 집계) + middleware `/profile` prefix 일반화(비로그인 전체 차단). Code Review fix 2건 + lint fix 1건(`react-hooks/set-state-in-effect` → `useState` lazy initializer) + 다른 세션 PR 리뷰의 P3 review fix 2건(SQL redundant filter 제거 + 성공 분기 isMountedRef 가드) 동일 PR에 반영.
 
 대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B(#10)에서 `/login`/`/auth/callback` 구현 + PR #11에서 익명 게스트 플로우 제거 + **PR #7-C(#12) dev 머지 완료** — middleware 라우트 가드 + AuthListener 전역 구독 + UserMenu 드롭다운 + 홈 화면 재작성 + PR #11 보안 후속 3건. **PR #7-D(#13) Step 3 매칭 dev 머지 완료**: 친구 초대 매칭 흐름(POST /api/match/invite + /dashboard + InviteCard) + /invite/[token] 비인증 진입 + useMatchStatus 훅(matches 실시간 동기화) + HostWaitingView/WaitingForGameStart + /play 5단계 분기 통합. **PR #14 dev 머지 완료(`8f7d600`)**: matches/match_participants/profiles RLS 좁힘(TO authenticated, anon 차단) + `get_invite_match_by_token` SECURITY DEFINER RPC 신설(invite_token 컬럼 미노출) + `/api/match/[matchId]/join`에 invite token 검증 + `admin.ts` service-role 클라이언트 신설(`service.ts`와 중복 — §D-2-a 후속) + useMatchRealtime cascading render fix + UserMenu base-ui Group wrapping fix + console.log 3줄 정리 + 화면 단위 코드 복기 주석 5곳. **PR #16 (브랜치 `feature/d2-followup-cleanup`, dev 머지 대기)**: §D-2 후속 정리 묶음 — `admin.ts` 제거 후 `createServiceClient()` 재사용(§D-2-a) + `matches.participant_update` WITH CHECK 추가(status/winner_id 잠금) + `prevent_protected_matches_update` BEFORE UPDATE 트리거(host_id/invite_token/invite_expires_at/problem_id/start_time/created_at/id 잠금, service_role은 `auth.role()='service_role'`로 우회)(§D-2-b) + `/api/match/route.ts` dead code 제거(§D-2-c) + **`match_participants.self_update` 정책 신설 + 보호 컬럼 트리거**(§D-2-d — 회귀 fix: UPDATE 정책 부재로 `submit/route.ts:354`의 score 갱신이 silently 차단되어 score 26건 전부 NULL이던 상태 해소) + `submit/route.ts:354`에 `.select("id")` 가드 추가(silent fail 향후 감지). 외부 리뷰에서 발견된 match_participants score write primitive(인가 사용자가 자기 score 를 PostgREST PATCH 로 임의 값 위조 가능)를 같은 PR 후속 커밋으로 fix — `self_update` 정책 DROP + submit 라우트의 score 갱신을 service-role 로 전환 (`20260516_fix_match_participants_score_write_primitive.sql`). **외부 리뷰 2차** 에서 score primitive 와 완벽 대칭인 matches winner write primitive(인가 사용자가 PostgREST PATCH 로 자기를 winner 로 즉시 선언 가능)를 같은 PR 후속 커밋으로 fix — `participant_update` 정책 DROP + submit 라우트의 matches finalize UPDATE 를 service-role 로 전환 (`20260516_fix_matches_winner_write_primitive.sql`). 다음은 Step 3 프로필 PR 또는 §C Realtime 채널 구조 분석.
 
@@ -51,7 +51,13 @@
 app/
 ├── (main)/
 │   ├── layout.tsx                ✅  글로벌 sticky 헤더 (h-14, z-40, backdrop-blur) + <main flex-1> wrapper, <UserMenu /> 일괄 마운트 (B PR)
-│   ├── result/[matchId]/         ⏳  빈 디렉토리 (결과는 /play 안에서 처리 중)
+│   ├── result/[matchId]/page.tsx                              ✅  server component — status pre-check + Promise.all 풀 fetch + Shiki SSR 하이라이팅 + 분기 (notFound / redirect /play / render) (PR Step 4-A)
+│   ├── result/[matchId]/_components/ResultView.tsx            ✅  client — 레이아웃 + 모바일 반응형(grid → stack) + 홈 Link (PR Step 4-A)
+│   ├── result/[matchId]/_components/ResultHeader.tsx          ✅  server — 승/패/무 배너 + 양쪽 점수 (PR Step 4-A)
+│   ├── result/[matchId]/_components/ParticipantCodeCard.tsx   ✅  server — 아바타/닉네임/점수 + Shiki HTML (PR Step 4-A)
+│   ├── result/[matchId]/_components/AiReviewPlaceholder.tsx   ✅  client — "AI 리뷰 준비 중" 카드 (Step 4-B 진입점)
+│   ├── result/[matchId]/_utils/getResultData.ts               ✅  server-only — 4 fetch + RLS 0건 detect (PR Step 4-A)
+│   └── result/[matchId]/_utils/highlightCode.ts               ✅  server-only — Shiki + escape 폴백 (PR Step 4-A)
 │   ├── dashboard/page.tsx        ✅  친구 초대 카드 (PR #7-D, B PR에서 임시 헤더 + 외곽 wrapper 제거)
 │   ├── dashboard/_components/InviteCard.tsx ✅  POST /api/match/invite → Dialog (PR #7-D)
 │   ├── leaderboard/              ⏳  빈 디렉토리 (장기)
@@ -90,6 +96,7 @@ app/
 │   ├── match/                    ✅  MatchStatusBar + SoundToggle + 4 hooks (Realtime/Sounds/Timer/Status) + utils (createInviteToken/isInviteExpired) + types/invite
 │   ├── problem/                  ✅  ProblemPanel + types
 │   ├── profile/                  ✅  types/index.ts + utils 4종(getProfileStats / isAutoGeneratedNickname / formatJoinDate / validateNickname, PR #18)
+│   ├── result/                   ✅  types/index.ts (IResultData, IResultParticipant, IHighlightedCode) — PR Step 4-A
 │   └── review/                   ⏳  빈 디렉토리 (AI 리뷰 UI 미구현)
 ├── shared/
 │   ├── components/
@@ -198,7 +205,7 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 | `app/(main)/profile/me/`   | ✅   | server component — auth.getUser() → redirect(/profile/${user.id}) (PR #18)                                                                                                       |
 | `app/api/profile/me/`      | ✅   | PATCH 본인 프로필 갱신 (PR #18)                                                                                                                                                  |
 | `app/(main)/leaderboard/`  | ⏳   | 명세 미정 (장기)                                                                                                                                                                 |
-| `app/(main)/result/[id]/`  | ⏳   | 빈 디렉토리. 결과는 `/play` 페이지 인라인 (분리 여부 미정). middleware 가드 활성                                                                                                 |
+| `app/(main)/result/[id]/`  | ✅   | Step 4-A 완료 — server component + status pre-check + Promise.all + Shiki SSR + RLS 자연 게이트. /play에서 "결과 자세히 보기" Link로 진입                                        |
 | `app/api/ai/`              | ⏳   | 빈 디렉토리. Gemini 코드 리뷰 API 미구현                                                                                                                                         |
 | `app/features/review/`     | ⏳   | 빈 디렉토리. AI 리뷰 UI 미구현                                                                                                                                                   |
 | 라우트 가드 (middleware)   | ✅   | 보호 prefix(`/play`, `/result`, `/dashboard`, `/profile/me`) SSR 가드 + `/api/*` 분기 (PR #7-C)                                                                                  |
@@ -392,17 +399,15 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
-- **일자**: 2026-05-30
-- **시점**: §C Realtime 채널 구조 분석 노트 작성. PR #18은 2026-05-17 dev 머지 완료 (커밋 `386a406`). dev clean. 코드 변경 없음, 문서만 추가/갱신.
-- **변경 요약**: 🆕 `docs/notes/realtime-channels.md` (분석 노트, 코드 변경 없음). ✏️ `docs/NEXT_SESSION.md` 현재 상태 / 작업 후보 표 갱신. ✏️ `SCREEN_STATUS.md` §C 완료 마킹 + 다음 PR 후보 재정렬. ✏️ `PROJECT_STATUS.md` 한 줄 진단 + 다음 액션 순서 갱신.
-- **§C 분석 결과 요약**: 채널 2개(broadcast `match:` + postgres_changes `match-status:`)의 책임 분리 / cleanup 안전성 / 30s polling fallback 신뢰성 / 명명 컨벤션 일관성 4축 점검. **결론**: 구조 유지가 합당. 사용처 3곳(`useMatchRealtime.ts:54` + `submit/route.ts:423` + `useMatchStatus.ts:114`) 모두 memory의 prefix 컨벤션 일치. **개선 후보 2건** 별도 PR로 분리: ❶ `useMatchRealtime` cleanup에 `setIsSubscribed(false)` reset 1줄 추가 (대칭성), ❷ polling이 `isRealtimeConnected` 살아있을 때 skip 분기 추가 (Step 4 polling 추가 시 함께 검토). 변경 없음 — 유지 합당 항목: 채널 책임 분리 / prefix 명명 / 3 effect 분리 + 자체 isMounted 가드 / 서버 broadcast 1회용 채널 / `broadcast: { self: false }` + 가드 이중화 / callbacksRef 패턴.
-- **다음 액션 순서** (2026-05-30 §C 노트 완료 이후):
-  1. **Step 4 진입** — 결과 페이지 (`/result/[matchId]`) + Gemini AI 리뷰 (`/api/ai/` + `features/review/`) 인프라. 진입 전 brainstorming 권장 (라우트 분리 / API 호출 위치 / 데이터 모델)
-  2. **§D-2 후속 정리 후보 (PR #16 리뷰 발견)** — `match_participants.self_insert`/`self_delete`의 `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화
-  3. **§C 개선 후보 ❷** (polling skip 분기) — `useMatchStatus.ts` polling이 Realtime 살아있을 때 skip. Step 4 polling 추가 시 함께 검토. ref + 비교 패턴, ~5줄
-  4. **§C 개선 후보 ❶** (`setIsSubscribed(false)` reset) — `useMatchRealtime.ts` cleanup 1줄. 다른 정리 작업과 묶어서 진행 권장
-  5. **`/play` 비참가자 가드 강화** — PR #14 RLS 좁힘으로 자연 해소 가능. 검증만 필요
-  6. **invite 토큰 lazy cleanup** — 만료된 waiting 매치 자동 정리 (Step 4 cron 또는 매치 진입 시 lazy delete)
-  7. **코드 리뷰 nit 후속** — placeholder Card 시멘틱 / "다음 PR" 카피 / LoginPage design token 통일 / `app/_components/` 폴더 컨벤션 가이드
-  8. **CODE_CONVENTIONS.md "React Compiler" 표현 명확화** — 현재 자동 메모는 비활성 (lint 룰만 동작). "Compiler가 강제" → "lint 룰이 강제 (Compiler 도입 시 추가로 자동 메모)"로 정정
-  9. **시드 SQL ON CONFLICT 단순화** (별도 후속 — 우선순위 낮음)
+- **일자**: 2026-05-30 (Step 4-A 구현 완료)
+- **시점**: Step 4-A `/result/[matchId]` 결과 페이지 PR (브랜치 `feature/step4a-result-page`, 미커밋 미머지). brainstorming + spec(`docs/superpowers/specs/2026-05-30-step4a-result-page-design.md`) + plan(`docs/superpowers/plans/2026-05-30-step4a-result-page.md`) → 구현 → 커밋/PR/머지는 사용자 명시 요청 시.
+- **변경 요약**: 신규 라우트 `app/(main)/result/[matchId]/` 7개 파일 + `app/features/result/types/index.ts` + `shiki` 의존성 + `/play/[matchId]/page.tsx` finished 배너에 "결과 자세히 보기" Link 1개 + BLUE_PRINT Phase 4.5 신설 + PROJECT_STATUS/SCREEN_STATUS 동기화. RLS / DB / 마이그레이션 변경 없음.
+- **Step 4.5 분리**: 원래 BLUE_PRINT Phase 4에 있던 "MMR 변동 표시"는 별도 Phase 4.5 신설로 이관 — Step 4-A에서는 MMR UI 없음.
+- **다음 액션 순서**:
+  1. **사용자 명시 요청 시 커밋 + PR 생성 + dev 머지** (현재 단계)
+  2. **Step 4-B 진입** — Gemini API + AI 리뷰 UI (brainstorming 필요)
+  3. **Step 4.5 진입** — MMR 산출 + 결과 페이지 변동 표시 (brainstorming 필요)
+  4. **§D-2 후속 정리** — `match_participants.self_insert`/`self_delete` `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화
+  5. **§C 개선 후보 ❷** — Step 4-B polling 추가 시 함께
+  6. **§C 개선 후보 ❶** — useMatchRealtime cleanup setIsSubscribed(false) 1줄
+  7. (기존 후속 후보들 유지)

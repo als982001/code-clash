@@ -28,6 +28,7 @@ import type { IProblem } from "@/app/features/problem/types";
 import { useAuth } from "@/app/shared/hooks/useAuth";
 import HostWaitingView from "@/app/play/[matchId]/_components/HostWaitingView";
 import WaitingForGameStart from "@/app/play/[matchId]/_components/WaitingForGameStart";
+import { buttonVariants } from "@/components/ui/button-variants";
 
 /** 대전 제한 시간 (초) - 15분 */
 const MATCH_DURATION_SECONDS = 900;
@@ -450,6 +451,12 @@ export default function PlayPage({ params }: IPlayPageProps) {
                 })?.[1] ?? 0}
               </span>
             </div>
+            <Link
+              href={`/result/${matchId}`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              결과 자세히 보기
+            </Link>
           </div>
         )}
 
