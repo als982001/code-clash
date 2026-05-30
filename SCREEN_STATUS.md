@@ -100,10 +100,11 @@
   - middleware 보호 prefix `/profile/me` → `/profile` 확장 — `isProtectedPath`가 `pathname === prefix || pathname.startsWith(prefix + "/")` 매칭이라 `/profilable-thing` 우연 매칭 위험 없음
   - RLS 정책 변경 없음 (RPC만 추가)
   - 다른 라우트/컴포넌트/API 영향 없음
+- **§C Realtime 채널 구조 분석 (2026-05-30 완료)** — `docs/notes/realtime-channels.md` 작성. 채널 분리 / cleanup / polling fallback / 명명 컨벤션 4축 점검. 결론: 구조 유지가 합당, 개선 후보 2건(❶ `useMatchRealtime` cleanup에 `setIsSubscribed(false)` reset 누락 / ❷ polling이 Realtime 살아있을 때 skip 분기 부재)은 별도 PR 후보로 분리
 - **다음 PR 후보 (Step 3 종료 이후)**:
-  1. **§C Realtime 채널 구조 분석** — 코드 변경 없는 노트 또는 메모리 기록 (사용자 요청 살아있음)
-  2. **§D-2 후속 정리** — `match_participants.self_insert`/`self_delete` `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화
-  3. **Step 4 진입** — 결과 페이지 + AI 리뷰 (Gemini) 인프라
-  4. **코드 리뷰 nit 후속** — placeholder Card 시멘틱 / "다음 PR" 카피 / LoginPage design token 통일 / `app/_components/` 폴더 컨벤션 가이드
-  5. **invite 토큰 lazy cleanup** — 만료된 waiting 매치 자동 정리 (Step 4 cron 또는 매치 진입 시 lazy delete)
-  6. **CODE_CONVENTIONS.md "React Compiler" 표현 명확화** — 현재 자동 메모는 비활성 (lint 룰만 동작). 표현이 오해 유발
+  1. **§D-2 후속 정리** — `match_participants.self_insert`/`self_delete` `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화
+  2. **Step 4 진입** — 결과 페이지 + AI 리뷰 (Gemini) 인프라
+  3. **코드 리뷰 nit 후속** — placeholder Card 시멘틱 / "다음 PR" 카피 / LoginPage design token 통일 / `app/_components/` 폴더 컨벤션 가이드
+  4. **invite 토큰 lazy cleanup** — 만료된 waiting 매치 자동 정리 (Step 4 cron 또는 매치 진입 시 lazy delete)
+  5. **CODE_CONVENTIONS.md "React Compiler" 표현 명확화** — 현재 자동 메모는 비활성 (lint 룰만 동작). 표현이 오해 유발
+  6. **§C 개선 후보 ❶ ❷** — Realtime 노트에서 발견. ❶은 1줄 fix(낮은 우선순위), ❷는 Step 4 polling 추가 시 함께 검토
