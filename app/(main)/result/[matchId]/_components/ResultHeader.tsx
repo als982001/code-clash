@@ -40,6 +40,11 @@ export default function ResultHeader({ data }: { data: IResultData }) {
           <b className="text-foreground">{opponent.score}</b>
         </span>
       </div>
+      {match.winnerId !== null && me.score === opponent.score && (
+        <p className="text-xs text-muted-foreground">
+          점수 동점 시 먼저 제출한 쪽이 승리합니다
+        </p>
+      )}
     </header>
   );
 }
