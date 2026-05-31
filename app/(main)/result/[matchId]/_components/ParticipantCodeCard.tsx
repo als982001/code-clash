@@ -44,6 +44,26 @@ export default function ParticipantCodeCard({
             {participant.score}점 · {participant.submission.passedCases}/
             {participant.submission.totalCases} 통과
           </span>
+          {participant.mmrChange !== null && (
+            <span className="text-xs">
+              <span
+                className={
+                  participant.mmrChange > 0
+                    ? "font-semibold text-emerald-600"
+                    : participant.mmrChange < 0
+                      ? "font-semibold text-red-600"
+                      : "font-semibold text-muted-foreground"
+                }
+              >
+                {participant.mmrChange > 0
+                  ? `+${participant.mmrChange}`
+                  : participant.mmrChange}
+              </span>{" "}
+              <span className="text-muted-foreground">
+                · {participant.tier} {participant.currentMmr}
+              </span>
+            </span>
+          )}
         </div>
       </div>
       <div

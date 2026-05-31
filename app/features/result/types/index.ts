@@ -13,6 +13,9 @@ export interface IResultParticipant {
   avatarUrl: string | null;
   score: number;
   isMe: boolean;
+  mmrChange: number | null;
+  currentMmr: number;
+  tier: string;
   submission: IResultParticipantSubmission;
 }
 

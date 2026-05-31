@@ -16,6 +16,7 @@ interface IGetResultDataParams {
 interface IParticipantRow {
   user_id: string;
   score: number | null;
+  mmr_change: number | null;
 }
 
 interface ISubmissionRow {
@@ -32,6 +33,8 @@ interface IProfileRow {
   id: string;
   nickname: string | null;
   avatar_url: string | null;
+  mmr: number | null;
+  tier: string | null;
 }
 
 /**
@@ -66,7 +69,7 @@ export async function getResultData({
       .single(),
     client
       .from("match_participants")
-      .select("user_id, score")
+      .select("user_id, score, mmr_change")
       .eq("match_id", matchId),
     client
       .from("submissions")
@@ -93,7 +96,7 @@ export async function getResultData({
 
   const profilesRes = await client
     .from("profiles")
-    .select("id, nickname, avatar_url")
+    .select("id, nickname, avatar_url, mmr, tier")
     .in("id", userIds);
 
   const profileMap = new Map<string, IProfileRow>();
@@ -148,6 +151,9 @@ export async function getResultData({
       avatarUrl: profile?.avatar_url ?? null,
       score: participant.score ?? 0,
       isMe: uid === userId,
+      mmrChange: participant.mmr_change,
+      currentMmr: profile?.mmr ?? 1000,
+      tier: profile?.tier ?? "Bronze",
       submission: {
         id: submission.id,
         code: submission.code,

@@ -4,6 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { requireUser } from "@/app/shared/lib/auth/requireUser";
 import { createServiceClient } from "@/app/shared/lib/supabase/service";
+import { calculateMmr } from "@/app/features/match/utils/calculateMmr";
+import { getTierByMmr } from "@/app/features/match/utils/getTierByMmr";
 
 const JUDGE0_API_URL = process.env.JUDGE0_API_URL;
 const JUDGE0_API_KEY = process.env.JUDGE0_API_KEY;
@@ -419,6 +421,79 @@ export async function POST(
         scores[p.user_id] = p.score ?? 0;
       });
 
+      // MMR 산출 (Elo) — service-role 단독 갱신.
+      // profiles 평점 컬럼은 prevent_protected_profiles_update 트리거가
+      // 인가 사용자 위조를 차단하고 service_role 만 우회한다 (write primitive 방지).
+      // best-effort: MMR 갱신이 실패해도 매치 결과(winner)는 보존하고
+      // mmr_change 는 NULL 로 남겨 결과 페이지에서 변동 섹션을 숨긴다.
+      const mmrChange: Record<string, number> = {};
+
+      const [participantA, participantB] = allParticipants;
+
+      const { data: profileRows, error: profileFetchError } =
+        await serviceClient
+          .from("profiles")
+          .select("id, mmr")
+          .in("id", [participantA.user_id, participantB.user_id]);
+
+      if (!profileFetchError && profileRows && profileRows.length === 2) {
+        const mmrByUserId = new Map<string, number>();
+
+        profileRows.forEach((row) => {
+          mmrByUserId.set(row.id, row.mmr ?? 1000);
+        });
+
+        const ratingA = mmrByUserId.get(participantA.user_id) ?? 1000;
+        const ratingB = mmrByUserId.get(participantB.user_id) ?? 1000;
+
+        const { changeA, changeB } = calculateMmr({
+          ratingA,
+          ratingB,
+          winnerId,
+          userIdA: participantA.user_id,
+          userIdB: participantB.user_id,
+        });
+
+        const ratingUpdates = [
+          { userId: participantA.user_id, rating: ratingA, change: changeA },
+          { userId: participantB.user_id, rating: ratingB, change: changeB },
+        ];
+
+        for (const update of ratingUpdates) {
+          const newMmr = update.rating + update.change;
+          const { tier } = getTierByMmr({ mmr: newMmr });
+
+          const { data: mmrChangeRows, error: mmrChangeError } =
+            await serviceClient
+              .from("match_participants")
+              .update({ mmr_change: update.change })
+              .eq("match_id", matchId)
+              .eq("user_id", update.userId)
+              .select("id");
+
+          const { data: profileRows2, error: profileUpdateError } =
+            await serviceClient
+              .from("profiles")
+              .update({ mmr: newMmr, tier })
+              .eq("id", update.userId)
+              .select("id");
+
+          const mmrChangeFailed =
+            mmrChangeError || !mmrChangeRows || mmrChangeRows.length === 0;
+          const profileFailed =
+            profileUpdateError || !profileRows2 || profileRows2.length === 0;
+
+          if (mmrChangeFailed || profileFailed) {
+            if (mmrChangeError) console.error(mmrChangeError);
+            if (profileUpdateError) console.error(profileUpdateError);
+          } else {
+            mmrChange[update.userId] = update.change;
+          }
+        }
+      } else if (profileFetchError) {
+        console.error(profileFetchError);
+      }
+
       // MATCH_FINISHED 브로드캐스트 (서버 → 클라이언트)
       const channel = client.channel(`match:${matchId}`);
 
@@ -428,7 +503,7 @@ export async function POST(
         payload: {
           winnerId,
           scores,
-          mmrChange: {},
+          mmrChange,
         },
       });
 
