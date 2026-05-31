@@ -463,6 +463,18 @@ export async function POST(
           const newMmr = update.rating + update.change;
           const { tier } = getTierByMmr({ mmr: newMmr });
 
+          // profiles 를 먼저 갱신한다. profiles 만 성공하고 mmr_change 가 실패하면
+          // mmr_change 는 NULL 로 남아 결과 페이지 레이팅 섹션이 graceful 하게 숨겨지고,
+          // 누적 mmr 은 올바르게 이동해 다음 매치에 반영된다.
+          // (mmr_change 를 먼저 두면 변동값은 표시되는데 누적 mmr 은 갱신 전이라
+          //  "+17 · Bronze 1400" 같은 모순 숫자가 노출된다.)
+          const { data: profileRows2, error: profileUpdateError } =
+            await serviceClient
+              .from("profiles")
+              .update({ mmr: newMmr, tier })
+              .eq("id", update.userId)
+              .select("id");
+
           const { data: mmrChangeRows, error: mmrChangeError } =
             await serviceClient
               .from("match_participants")
@@ -471,21 +483,14 @@ export async function POST(
               .eq("user_id", update.userId)
               .select("id");
 
-          const { data: profileRows2, error: profileUpdateError } =
-            await serviceClient
-              .from("profiles")
-              .update({ mmr: newMmr, tier })
-              .eq("id", update.userId)
-              .select("id");
-
-          const mmrChangeFailed =
-            mmrChangeError || !mmrChangeRows || mmrChangeRows.length === 0;
           const profileFailed =
             profileUpdateError || !profileRows2 || profileRows2.length === 0;
+          const mmrChangeFailed =
+            mmrChangeError || !mmrChangeRows || mmrChangeRows.length === 0;
 
-          if (mmrChangeFailed || profileFailed) {
-            if (mmrChangeError) console.error(mmrChangeError);
+          if (profileFailed || mmrChangeFailed) {
             if (profileUpdateError) console.error(profileUpdateError);
+            if (mmrChangeError) console.error(mmrChangeError);
           } else {
             mmrChange[update.userId] = update.change;
           }
