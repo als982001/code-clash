@@ -9,6 +9,8 @@
 
 **Step 3 100% 종료 (PR #18 dev 머지 완료, `386a406`). §C Realtime 채널 구조 분석 노트 작성 완료 (`docs/notes/realtime-channels.md`, 2026-05-30). Step 4-A `/result/[matchId]` 결과 페이지 PR (브랜치 `feature/step4a-result-page`) 구현 완료 — server component + Promise.all + Shiki SSR + RLS 자연 게이트, /play finished 배너에 "결과 자세히 보기" Link 추가. AI 리뷰는 Step 4-B, MMR은 Phase 4.5로 분리**. 프로필 페이지(`/profile/[userId]` + `/profile/me` + ProfileEditDialog + NicknameFallbackDialog) + PATCH `/api/profile/me` + `get_profile_stats(uuid)` SECURITY DEFINER STABLE RPC(matches/match_participants RLS 우회로 타인 전적 집계) + middleware `/profile` prefix 일반화(비로그인 전체 차단). Code Review fix 2건 + lint fix 1건(`react-hooks/set-state-in-effect` → `useState` lazy initializer) + 다른 세션 PR 리뷰의 P3 review fix 2건(SQL redundant filter 제거 + 성공 분기 isMountedRef 가드) 동일 PR에 반영.
 
+**Step 4-B 완료 (PR #20, dev 머지 대기)**: `/result/[matchId]`에 AI 코드 리뷰 신설. 본인 `ai_reviews` SSR 조회(캐싱 히트 즉시 표시) → 없으면 `AiReviewSection`(client)이 `POST /api/match/[matchId]/review` lazy 호출 → Gemini JSON 구조화 출력(복잡도/강점/개선/상대비교 — 본인 코드 리뷰 + 상대 코드 비교 컨텍스트). `ai_reviews` write 정책 부재(default deny) 유지 → INSERT는 service-role 단독(write primitive 방지, score/winner fix와 동일 패턴). `submission_id` UNIQUE(`ai_reviews_submission_id_key`) 기존재 + `ON CONFLICT DO NOTHING` + 저장값 재조회로 멱등. `@google/genai@^2.7.0` 추가, `AiReviewPlaceholder` → `AiReviewSection` 대체. **DB 스키마 변경 없음.** Code Review(opus) Critical 0 / W-1·W-2·W-3·N-3 fix 반영, W-4(me·opponent DRY) 별도 보류.
+
 대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B(#10)에서 `/login`/`/auth/callback` 구현 + PR #11에서 익명 게스트 플로우 제거 + **PR #7-C(#12) dev 머지 완료** — middleware 라우트 가드 + AuthListener 전역 구독 + UserMenu 드롭다운 + 홈 화면 재작성 + PR #11 보안 후속 3건. **PR #7-D(#13) Step 3 매칭 dev 머지 완료**: 친구 초대 매칭 흐름(POST /api/match/invite + /dashboard + InviteCard) + /invite/[token] 비인증 진입 + useMatchStatus 훅(matches 실시간 동기화) + HostWaitingView/WaitingForGameStart + /play 5단계 분기 통합. **PR #14 dev 머지 완료(`8f7d600`)**: matches/match_participants/profiles RLS 좁힘(TO authenticated, anon 차단) + `get_invite_match_by_token` SECURITY DEFINER RPC 신설(invite_token 컬럼 미노출) + `/api/match/[matchId]/join`에 invite token 검증 + `admin.ts` service-role 클라이언트 신설(`service.ts`와 중복 — §D-2-a 후속) + useMatchRealtime cascading render fix + UserMenu base-ui Group wrapping fix + console.log 3줄 정리 + 화면 단위 코드 복기 주석 5곳. **PR #16 (브랜치 `feature/d2-followup-cleanup`, dev 머지 대기)**: §D-2 후속 정리 묶음 — `admin.ts` 제거 후 `createServiceClient()` 재사용(§D-2-a) + `matches.participant_update` WITH CHECK 추가(status/winner_id 잠금) + `prevent_protected_matches_update` BEFORE UPDATE 트리거(host_id/invite_token/invite_expires_at/problem_id/start_time/created_at/id 잠금, service_role은 `auth.role()='service_role'`로 우회)(§D-2-b) + `/api/match/route.ts` dead code 제거(§D-2-c) + **`match_participants.self_update` 정책 신설 + 보호 컬럼 트리거**(§D-2-d — 회귀 fix: UPDATE 정책 부재로 `submit/route.ts:354`의 score 갱신이 silently 차단되어 score 26건 전부 NULL이던 상태 해소) + `submit/route.ts:354`에 `.select("id")` 가드 추가(silent fail 향후 감지). 외부 리뷰에서 발견된 match_participants score write primitive(인가 사용자가 자기 score 를 PostgREST PATCH 로 임의 값 위조 가능)를 같은 PR 후속 커밋으로 fix — `self_update` 정책 DROP + submit 라우트의 score 갱신을 service-role 로 전환 (`20260516_fix_match_participants_score_write_primitive.sql`). **외부 리뷰 2차** 에서 score primitive 와 완벽 대칭인 matches winner write primitive(인가 사용자가 PostgREST PATCH 로 자기를 winner 로 즉시 선언 가능)를 같은 PR 후속 커밋으로 fix — `participant_update` 정책 DROP + submit 라우트의 matches finalize UPDATE 를 service-role 로 전환 (`20260516_fix_matches_winner_write_primitive.sql`). 다음은 Step 3 프로필 PR 또는 §C Realtime 채널 구조 분석.
 
 ---
@@ -41,7 +43,7 @@
 ### 외부 API (서버사이드)
 
 - **Judge0** (RapidAPI) — 코드 채점
-- **Google Gemini** — AI 코드 리뷰 (env에는 키 등록, 코드 호출처는 미구현)
+- **Google Gemini** (`@google/genai ^2.7.0`) — AI 코드 리뷰 (PR Step 4-B, `/api/match/[matchId]/review` + `generateReview` JSON 구조화 출력)
 
 ---
 
@@ -55,7 +57,7 @@ app/
 │   ├── result/[matchId]/_components/ResultView.tsx            ✅  client — 레이아웃 + 모바일 반응형(grid → stack) + 홈 Link (PR Step 4-A)
 │   ├── result/[matchId]/_components/ResultHeader.tsx          ✅  server — 승/패/무 배너 + 양쪽 점수 (PR Step 4-A)
 │   ├── result/[matchId]/_components/ParticipantCodeCard.tsx   ✅  server — 아바타/닉네임/점수 + Shiki HTML (PR Step 4-A)
-│   ├── result/[matchId]/_components/AiReviewPlaceholder.tsx   ✅  client — "AI 리뷰 준비 중" 카드 (Step 4-B 진입점)
+│   ├── result/[matchId]/_components/AiReviewSection.tsx       ✅  client — ai_reviews SSR 분기 + 없으면 lazy 생성(POST review) + 로딩/에러/재시도 (PR Step 4-B)
 │   ├── result/[matchId]/_utils/getResultData.ts               ✅  server-only — 4 fetch + RLS 0건 detect (PR Step 4-A)
 │   └── result/[matchId]/_utils/highlightCode.ts               ✅  server-only — Shiki + escape 폴백 (PR Step 4-A)
 │   ├── dashboard/page.tsx        ✅  친구 초대 카드 (PR #7-D, B PR에서 임시 헤더 + 외곽 wrapper 제거)
@@ -85,10 +87,11 @@ app/
 │   ├── match/invite/route.ts     ✅  친구 초대 매치 + 토큰 발급 (PR #7-D, runtime=nodejs)
 │   ├── match/[matchId]/join/     ✅  참가자 추가 + requireUser (PR #7-C)
 │   ├── match/[matchId]/submit/   ✅  최종 채점 + requireUser (PR #7-C)
+│   ├── match/[matchId]/review/   ✅  AI 코드 리뷰 생성/조회 + 소유검증 + 캐싱 + Gemini + service-role upsert (PR Step 4-B, runtime=nodejs)
 │   ├── problems/route.ts         ✅  문제 목록 + requireUser (PR #7-C)
 │   ├── problems/[problemId]/     ✅  문제 단건 + requireUser (PR #7-C)
 │   ├── profile/me/route.ts       ✅  PATCH 본인 프로필 갱신 + requireUser + UNIQUE 23505 → 409 정밀 매핑 + RLS silent fail 가드 (PR #18)
-│   └── ai/                       ⏳  빈 디렉토리 (Gemini 리뷰 API 미구현)
+│   └── ai/                       ⏳  빈 디렉토리 (미사용 — AI 리뷰는 match/[matchId]/review로 구현)
 ├── _components/
 │   └── HomeClient.tsx            ✅  홈 페이지 client view — UserMenu 헤더(B PR에서 글로벌 헤더와 동일 className으로 통일) + 분기 + 매치 placeholder + 대시보드 카드 활성화 (PR #7-C/#7-D + B PR)
 ├── features/
@@ -97,7 +100,7 @@ app/
 │   ├── problem/                  ✅  ProblemPanel + types
 │   ├── profile/                  ✅  types/index.ts + utils 4종(getProfileStats / isAutoGeneratedNickname / formatJoinDate / validateNickname, PR #18)
 │   ├── result/                   ✅  types/index.ts (IResultData, IResultParticipant, IHighlightedCode) — PR Step 4-A
-│   └── review/                   ⏳  빈 디렉토리 (AI 리뷰 UI 미구현)
+│   └── review/                   ✅  types/index.ts(IAiReviewContent/IAiReview) + utils(generateReview / getAiReview) (PR Step 4-B)
 ├── shared/
 │   ├── components/
 │   │   ├── QueryProvider.tsx     ✅  staleTime 60s + retry 1 글로벌 + AuthListener 마운트 (PR #7-C)
@@ -194,26 +197,26 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 
 ## 부분 구현 / 스텁 영역 🔄 ⏳
 
-| 영역                       | 마커 | 비고                                                                                                                                                                             |
-| -------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/page.tsx` 홈 화면     | ✅   | 서버 wrapper + HomeClient (UserMenu 헤더 + 분기 + placeholder 카드, PR #7-C)                                                                                                     |
-| `app/(auth)/login/`        | ✅   | PR #7-B 완료 + sanitizeNext 적용 (PR #7-C)                                                                                                                                       |
-| `app/auth/callback/`       | ✅   | PR #7-B 완료 + sanitizeNext 적용 (PR #7-C)                                                                                                                                       |
-| `app/(main)/dashboard/`    | ✅   | 친구 초대 카드 + InviteCard Dialog (PR #7-D)                                                                                                                                     |
-| `app/invite/[token]/`      | ✅   | 비인증 허용 서버 컴포넌트 + JoinInvite (PR #7-D)                                                                                                                                 |
-| `app/(main)/profile/[id]/` | ✅   | 서버 컴포넌트 + ProfileView + ProfileEditDialog + NicknameFallbackDialog. middleware `/profile` prefix 일반화로 `/profile/me` + `/profile/[userId]` 둘 다 비로그인 차단 (PR #18) |
-| `app/(main)/profile/me/`   | ✅   | server component — auth.getUser() → redirect(/profile/${user.id}) (PR #18)                                                                                                       |
-| `app/api/profile/me/`      | ✅   | PATCH 본인 프로필 갱신 (PR #18)                                                                                                                                                  |
-| `app/(main)/leaderboard/`  | ⏳   | 명세 미정 (장기)                                                                                                                                                                 |
-| `app/(main)/result/[id]/`  | ✅   | Step 4-A 완료 — server component + status pre-check + Promise.all + Shiki SSR + RLS 자연 게이트. /play에서 "결과 자세히 보기" Link로 진입                                        |
-| `app/api/ai/`              | ⏳   | 빈 디렉토리. Gemini 코드 리뷰 API 미구현                                                                                                                                         |
-| `app/features/review/`     | ⏳   | 빈 디렉토리. AI 리뷰 UI 미구현                                                                                                                                                   |
-| 라우트 가드 (middleware)   | ✅   | 보호 prefix(`/play`, `/result`, `/dashboard`, `/profile/me`) SSR 가드 + `/api/*` 분기 (PR #7-C)                                                                                  |
-| AuthListener (전역)        | ✅   | `app/shared/components/AuthListener.tsx` — QueryProvider 내부 마운트 (PR #7-C)                                                                                                   |
-| UserMenu                   | ✅   | `app/shared/components/UserMenu.tsx` — HomeClient에서만 마운트 (글로벌 헤더는 다음 PR)                                                                                           |
-| HomeClient                 | ✅   | `app/_components/HomeClient.tsx` — UserMenu + 분기 + placeholder 카드 (PR #7-C)                                                                                                  |
-| (main) 글로벌 헤더         | ⏳   | `(main)/layout.tsx` 미도입. `/play`, `/dashboard`, `/profile`은 헤더 없음 (다음 PR 결정)                                                                                         |
-| Edge Functions             | ⏳   | 0개 (`mcp__supabase__list_edge_functions` 결과 비어있음)                                                                                                                         |
+| 영역                         | 마커 | 비고                                                                                                                                                                             |
+| ---------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/page.tsx` 홈 화면       | ✅   | 서버 wrapper + HomeClient (UserMenu 헤더 + 분기 + placeholder 카드, PR #7-C)                                                                                                     |
+| `app/(auth)/login/`          | ✅   | PR #7-B 완료 + sanitizeNext 적용 (PR #7-C)                                                                                                                                       |
+| `app/auth/callback/`         | ✅   | PR #7-B 완료 + sanitizeNext 적용 (PR #7-C)                                                                                                                                       |
+| `app/(main)/dashboard/`      | ✅   | 친구 초대 카드 + InviteCard Dialog (PR #7-D)                                                                                                                                     |
+| `app/invite/[token]/`        | ✅   | 비인증 허용 서버 컴포넌트 + JoinInvite (PR #7-D)                                                                                                                                 |
+| `app/(main)/profile/[id]/`   | ✅   | 서버 컴포넌트 + ProfileView + ProfileEditDialog + NicknameFallbackDialog. middleware `/profile` prefix 일반화로 `/profile/me` + `/profile/[userId]` 둘 다 비로그인 차단 (PR #18) |
+| `app/(main)/profile/me/`     | ✅   | server component — auth.getUser() → redirect(/profile/${user.id}) (PR #18)                                                                                                       |
+| `app/api/profile/me/`        | ✅   | PATCH 본인 프로필 갱신 (PR #18)                                                                                                                                                  |
+| `app/(main)/leaderboard/`    | ⏳   | 명세 미정 (장기)                                                                                                                                                                 |
+| `app/(main)/result/[id]/`    | ✅   | Step 4-A(결과) + Step 4-B(AI 리뷰, PR #20) 완료 — server component + Shiki SSR + AI 리뷰 SSR 조회/lazy 생성 (`AiReviewSection`)                                                  |
+| `app/api/match/[id]/review/` | ✅   | AI 코드 리뷰 생성/조회 API (PR Step 4-B). `app/api/ai/` 디렉토리는 미사용                                                                                                        |
+| `app/features/review/`       | ✅   | types + utils(generateReview / getAiReview) (PR Step 4-B)                                                                                                                        |
+| 라우트 가드 (middleware)     | ✅   | 보호 prefix(`/play`, `/result`, `/dashboard`, `/profile/me`) SSR 가드 + `/api/*` 분기 (PR #7-C)                                                                                  |
+| AuthListener (전역)          | ✅   | `app/shared/components/AuthListener.tsx` — QueryProvider 내부 마운트 (PR #7-C)                                                                                                   |
+| UserMenu                     | ✅   | `app/shared/components/UserMenu.tsx` — HomeClient에서만 마운트 (글로벌 헤더는 다음 PR)                                                                                           |
+| HomeClient                   | ✅   | `app/_components/HomeClient.tsx` — UserMenu + 분기 + placeholder 카드 (PR #7-C)                                                                                                  |
+| (main) 글로벌 헤더           | ⏳   | `(main)/layout.tsx` 미도입. `/play`, `/dashboard`, `/profile`은 헤더 없음 (다음 PR 결정)                                                                                         |
+| Edge Functions               | ⏳   | 0개 (`mcp__supabase__list_edge_functions` 결과 비어있음)                                                                                                                         |
 
 ---
 
@@ -308,7 +311,7 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 | `matches`            | 16   | 3       | `winner_id`, `host_id → profiles.id`, `problem_id → problems.id` (status: waiting 6 / ongoing 9 / finished 1)        |
 | `match_participants` | 26   | 3       | `match_id → matches.id`, `user_id → profiles.id` (PR #16 후속 커밋에서 self_update DROP — score write primitive fix) |
 | `submissions`        | 2    | 2       | `match_id → matches.id`, `user_id → profiles.id`                                                                     |
-| `ai_reviews`         | 0    | 1       | `submission_id → submissions.id`                                                                                     |
+| `ai_reviews`         | 2    | 1       | `submission_id → submissions.id` UNIQUE (self_read SELECT만 — write 정책 부재, INSERT는 service-role 단독, PR #20)   |
 
 ### RLS 정책 (14개)
 
@@ -370,17 +373,18 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 외부 의존성 / 환경 변수
 
-| 변수                                         | 용도                        | 코드 사용처                                             |
-| -------------------------------------------- | --------------------------- | ------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`                   | Supabase 프로젝트 URL       | client.ts, server.ts, middleware.ts                     |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`              | anon 키                     | 동상                                                    |
-| `SUPABASE_SERVICE_ROLE_KEY`                  | service role 키 (서버 전용) | `app/shared/lib/supabase/service.ts` (히든 케이스 조회) |
-| `LEGACY_NEXT_PUBLIC_SUPABASE_*`              | 구 키 잔재 (정리 후보)      | 미사용                                                  |
-| `CALLBACK_URL`                               | OAuth callback URL          | (PR #7-B에서 사용 예정)                                 |
-| `JUDGE0_API_URL` / `_KEY` / `_HOST`          | Judge0 (RapidAPI)           | judge/route.ts, submit/route.ts                         |
-| `GEMINI_API_KEY`                             | Gemini AI 리뷰              | (미구현 — `app/api/ai/` 빈 디렉토리)                    |
-| `GITHUB_CLIENT_ID` / `_SECRETS`              | GitHub OAuth Provider       | (PR #7-B에서 사용 예정)                                 |
-| `클라이언트_ID` / `클라이언트_보안_비밀번호` | Google OAuth Provider       | (PR #7-B에서 사용 예정)                                 |
+| 변수                                         | 용도                        | 코드 사용처                                                             |
+| -------------------------------------------- | --------------------------- | ----------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`                   | Supabase 프로젝트 URL       | client.ts, server.ts, middleware.ts                                     |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`              | anon 키                     | 동상                                                                    |
+| `SUPABASE_SERVICE_ROLE_KEY`                  | service role 키 (서버 전용) | `service.ts` (히든 케이스 조회 + score/winner 갱신 + ai_reviews INSERT) |
+| `LEGACY_NEXT_PUBLIC_SUPABASE_*`              | 구 키 잔재 (정리 후보)      | 미사용                                                                  |
+| `CALLBACK_URL`                               | OAuth callback URL          | (PR #7-B에서 사용 예정)                                                 |
+| `JUDGE0_API_URL` / `_KEY` / `_HOST`          | Judge0 (RapidAPI)           | judge/route.ts, submit/route.ts                                         |
+| `GEMINI_API_KEY`                             | Gemini AI 리뷰              | `generateReview.ts` (PR Step 4-B)                                       |
+| `GEMINI_MODEL` (선택)                        | Gemini 모델명 override      | `generateReview.ts` 기본값 `gemini-2.5-flash`                           |
+| `GITHUB_CLIENT_ID` / `_SECRETS`              | GitHub OAuth Provider       | (PR #7-B에서 사용 예정)                                                 |
+| `클라이언트_ID` / `클라이언트_보안_비밀번호` | Google OAuth Provider       | (PR #7-B에서 사용 예정)                                                 |
 
 ---
 
@@ -399,15 +403,17 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
-- **일자**: 2026-05-30 (Step 4-A 구현 완료)
-- **시점**: Step 4-A `/result/[matchId]` 결과 페이지 PR (브랜치 `feature/step4a-result-page`, 미커밋 미머지). brainstorming + spec(`docs/superpowers/specs/2026-05-30-step4a-result-page-design.md`) + plan(`docs/superpowers/plans/2026-05-30-step4a-result-page.md`) → 구현 → 커밋/PR/머지는 사용자 명시 요청 시.
-- **변경 요약**: 신규 라우트 `app/(main)/result/[matchId]/` 7개 파일 + `app/features/result/types/index.ts` + `shiki` 의존성 + `/play/[matchId]/page.tsx` finished 배너에 "결과 자세히 보기" Link 1개 + BLUE_PRINT Phase 4.5 신설 + PROJECT_STATUS/SCREEN_STATUS 동기화. RLS / DB / 마이그레이션 변경 없음.
-- **Step 4.5 분리**: 원래 BLUE_PRINT Phase 4에 있던 "MMR 변동 표시"는 별도 Phase 4.5 신설로 이관 — Step 4-A에서는 MMR UI 없음.
+- **일자**: 2026-05-31 (Step 4-B AI 리뷰 구현 완료)
+- **시점**: Step 4-B `/result/[matchId]` AI 코드 리뷰 PR #20 (브랜치 `feature/step4b-ai-review`, **dev 머지 대기**). brainstorming + spec(`docs/superpowers/specs/2026-05-31-step4b-ai-review-design.md`) + plan(`docs/superpowers/plans/2026-05-31-step4b-ai-review.md`) → agent-team-workflow 구현 → Code Review(opus) → W-1/2/3 + N-3 fix → 커밋·PR. 머지는 사용자 명시 요청 시.
+- **변경 요약**: 신규 `app/features/review/`(types + generateReview + getAiReview) + `app/api/match/[matchId]/review/route.ts` + `AiReviewSection.tsx` / 수정 `result/page.tsx`·`ResultView.tsx`·`getResultData.ts`·result types(`submission.id`) / 삭제 `AiReviewPlaceholder.tsx` / `@google/genai@^2.7.0` 추가(커밋 `c9a1e61`). **DB 스키마 변경 없음** — `ai_reviews.submission_id` UNIQUE 기존재(DB 검증으로 마이그레이션 작업 제거). RLS 무변경(write는 service-role 단독).
+- **Code Review(opus)**: Critical 0. W-1(submission 조회 maybeSingle + error 분기)·W-2(upsert 후 저장값 재조회)·W-3(getAiReview error 분기 로깅)·N-3(`let review` 타입 명시) fix 반영. W-4(me·opponent DRY)는 회귀 면적 고려 별도 보류.
+- **외부 세션 2차 리뷰**: Critical 0. F1(LLM 출력 런타임 미검증→영구 크래시 — `isValidReviewContent` 타입 가드 신설 + `generateReview` parse 후 throw + `getAiReview` malformed content→null)·F3(상대 submission `.single()`→`.maybeSingle()`) fix 반영. F2(Gemini 동시요청 N배 — `ai_reviews` status 컬럼 도입과 함께 후속 PR), F4(테스트 인프라)·F5("finished" const)·F6(프롬프트 인젝션, 본인 리뷰 한정) 보류. F7(play 5초) 머지 전 900 복원 인지. 기존 캐시 2건은 새 가드 기준 valid 확인.
+- **PR 미포함**: `app/play/[matchId]/page.tsx`의 매치 시간 5초(로컬 테스트용 임시) — 커밋 제외, working tree에만 유지.
+- **검증**: 런타임 동작 확인(실 매치 리뷰 생성·캐싱, `ai_reviews` 2건). tsc/lint/build 미실행(자동검증 금지). `@google/genai` SDK 시그니처는 `.d.ts` 대조 검증.
 - **다음 액션 순서**:
-  1. **사용자 명시 요청 시 커밋 + PR 생성 + dev 머지** (현재 단계)
-  2. **Step 4-B 진입** — Gemini API + AI 리뷰 UI (brainstorming 필요)
-  3. **Step 4.5 진입** — MMR 산출 + 결과 페이지 변동 표시 (brainstorming 필요)
-  4. **§D-2 후속 정리** — `match_participants.self_insert`/`self_delete` `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화
-  5. **§C 개선 후보 ❷** — Step 4-B polling 추가 시 함께
-  6. **§C 개선 후보 ❶** — useMatchRealtime cleanup setIsSubscribed(false) 1줄
-  7. (기존 후속 후보들 유지)
+  1. **PR #20 dev 머지** (사용자 명시 요청 시) → 머지 후 `docs/NEXT_SESSION.md` 한 번 더 갱신 (리뷰 수정 반영)
+  2. **Step 4.5 진입** — MMR 산출 + 결과 페이지 변동 표시 (brainstorming 필요)
+  3. **§D-2 후속 정리** — `match_participants.self_insert`/`self_delete` `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화
+  4. **AI 리뷰 후속** — W-4(me·opponent DRY 헬퍼) / Next Step 학습 추천(약점 태그) / 프롬프트 캐싱·토큰 최적화 / `@google/genai` npm 취약점 점검
+  5. **§C 개선 후보 ❶ ❷** — Realtime 노트에서 발견
+  6. (기존 후속 후보들 유지)

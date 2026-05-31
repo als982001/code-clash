@@ -19,6 +19,7 @@ interface IParticipantRow {
 }
 
 interface ISubmissionRow {
+  id: string;
   user_id: string;
   code: string;
   language: string;
@@ -70,7 +71,7 @@ export async function getResultData({
     client
       .from("submissions")
       .select(
-        "user_id, code, language, passed_cases, total_cases, submitted_at",
+        "id, user_id, code, language, passed_cases, total_cases, submitted_at",
       )
       .eq("match_id", matchId),
   ]);
@@ -148,6 +149,7 @@ export async function getResultData({
       score: participant.score ?? 0,
       isMe: uid === userId,
       submission: {
+        id: submission.id,
         code: submission.code,
         language: submission.language,
         passedCases: submission.passed_cases ?? 0,
