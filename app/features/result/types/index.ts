@@ -1,4 +1,5 @@
 export interface IResultParticipantSubmission {
+  id: string;
   code: string;
   language: string;
   passedCases: number;

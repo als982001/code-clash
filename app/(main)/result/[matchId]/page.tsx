@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
+import { getAiReview } from "@/app/features/review/utils/getAiReview";
 import { createClient } from "@/app/shared/lib/supabase/server";
 
 import ResultView from "./_components/ResultView";
@@ -79,11 +80,19 @@ export default async function ResultPage({ params }: IResultPageProps) {
     }),
   ]);
 
+  const me = data.host.isMe ? data.host : data.guest;
+  const initialReview = await getAiReview({
+    client,
+    submissionId: me.submission.id,
+  });
+
   return (
     <ResultView
       data={data}
       hostHighlighted={hostHighlighted}
       guestHighlighted={guestHighlighted}
+      matchId={matchId}
+      initialReview={initialReview}
     />
   );
 }
