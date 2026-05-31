@@ -1,5 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
+import { getTierEmoji } from "@/app/features/match/utils/getTierEmoji";
+
 import type {
   IResultParticipant,
   IHighlightedCode,
@@ -21,6 +23,8 @@ export default function ParticipantCodeCard({
 }) {
   const initials = participant.nickname.slice(0, 2).toUpperCase();
 
+  const { emoji } = getTierEmoji({ tier: participant.tier });
+
   return (
     <article className="flex flex-col overflow-hidden rounded-lg border bg-card">
       <div className="flex items-center gap-3 border-b px-4 py-3">
@@ -33,7 +37,7 @@ export default function ParticipantCodeCard({
           )}
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
-        <div className="flex flex-col">
+        <div className="flex min-w-0 flex-col">
           <span className="max-w-[200px] truncate text-sm font-semibold">
             {participant.nickname}
             {participant.isMe && (
@@ -41,11 +45,12 @@ export default function ParticipantCodeCard({
             )}
           </span>
           <span className="text-xs text-muted-foreground">
-            {participant.score}점 · {participant.submission.passedCases}/
+            성과 {participant.score}점 · {participant.submission.passedCases}/
             {participant.submission.totalCases} 통과
           </span>
           {participant.mmrChange !== null && (
-            <span className="text-xs">
+            <span className="text-xs text-muted-foreground">
+              레이팅{" "}
               <span
                 className={
                   participant.mmrChange > 0
@@ -58,13 +63,18 @@ export default function ParticipantCodeCard({
                 {participant.mmrChange > 0
                   ? `+${participant.mmrChange}`
                   : participant.mmrChange}
-              </span>{" "}
-              <span className="text-muted-foreground">
-                · {participant.tier} {participant.currentMmr}
               </span>
             </span>
           )}
         </div>
+        {participant.mmrChange !== null && (
+          <span className="ml-auto flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-semibold whitespace-nowrap">
+            {emoji && <span>{emoji}</span>}
+            <span>
+              {participant.tier} {participant.currentMmr}
+            </span>
+          </span>
+        )}
       </div>
       <div
         className="overflow-auto text-xs [&_pre]:!m-0 [&_pre]:!rounded-none [&_pre]:!p-4"

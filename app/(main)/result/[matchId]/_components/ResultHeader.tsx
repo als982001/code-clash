@@ -30,15 +30,18 @@ export default function ResultHeader({ data }: { data: IResultData }) {
       <span className={`text-3xl font-bold ${outcomeColor}`}>
         {outcomeText}
       </span>
-      <div className="flex gap-6 text-sm">
-        <span className="text-muted-foreground">
-          {me.nickname}: <b className="text-foreground">{me.score}</b>
-        </span>
-        <span className="text-muted-foreground">|</span>
-        <span className="text-muted-foreground">
-          {opponent.nickname}:{" "}
-          <b className="text-foreground">{opponent.score}</b>
-        </span>
+      <div className="flex flex-col items-center gap-1">
+        <span className="text-xs text-muted-foreground">성과 점수</span>
+        <div className="flex gap-6 text-sm">
+          <span className="text-muted-foreground">
+            {me.nickname}: <b className="text-foreground">{me.score}</b>
+          </span>
+          <span className="text-muted-foreground">|</span>
+          <span className="text-muted-foreground">
+            {opponent.nickname}:{" "}
+            <b className="text-foreground">{opponent.score}</b>
+          </span>
+        </div>
       </div>
       {match.winnerId !== null && me.score === opponent.score && (
         <p className="text-xs text-muted-foreground">
