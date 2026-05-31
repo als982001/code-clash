@@ -96,12 +96,13 @@ export async function POST(
   }
 
   // 상대 submission (co-participant RLS 로 조회 — 결과 페이지와 동일 경로)
+  // maybeSingle: 상대 제출이 없을 수 있고(0건), 본인 조회(maybeSingle)와 일관되게 error suppression 을 피한다.
   const { data: opponentSubmission } = await client
     .from("submissions")
     .select("code, language")
     .eq("match_id", matchId)
     .neq("user_id", userId)
-    .single();
+    .maybeSingle();
 
   // 문제 지문
   const { data: problem } = await client

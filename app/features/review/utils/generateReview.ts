@@ -2,7 +2,9 @@ import "server-only";
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-import type { IAiReview, IAiReviewContent } from "@/app/features/review/types";
+import type { IAiReview } from "@/app/features/review/types";
+
+import { isValidReviewContent } from "./isValidReviewContent";
 
 /** 모델명. 운영자가 GEMINI_MODEL env로 교체 가능. 기본값은 안정 flash 버전. */
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
@@ -145,9 +147,27 @@ ${opponentCode}
     throw new Error("Gemini 응답이 비어 있습니다.");
   }
 
-  const parsed = JSON.parse(text) as IAiReviewContent & { summary: string };
+  // responseSchema 가 100% 보장이 아니므로 parse 결과를 런타임 검증한다.
+  // 깨진 출력을 그대로 반환하면 호출부가 service-role 로 INSERT → UNIQUE 캐시 →
+  // 결과 페이지가 영구 크래시하므로, 여기서 throw 하여 저장 자체를 차단한다 (500 → 재시도).
+  const parsed: unknown = JSON.parse(text);
 
-  const { summary, ...content } = parsed;
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    typeof (parsed as Record<string, unknown>).summary !== "string"
+  ) {
+    throw new Error("Gemini 응답 형식이 올바르지 않습니다 (summary 누락).");
+  }
+
+  const { summary, ...content } = parsed as { summary: string } & Record<
+    string,
+    unknown
+  >;
+
+  if (!isValidReviewContent(content)) {
+    throw new Error("Gemini 응답이 리뷰 스키마와 일치하지 않습니다.");
+  }
 
   return { content, summary };
 }

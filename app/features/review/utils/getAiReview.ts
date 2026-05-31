@@ -2,7 +2,9 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { IAiReview, IAiReviewContent } from "@/app/features/review/types";
+import type { IAiReview } from "@/app/features/review/types";
+
+import { isValidReviewContent } from "./isValidReviewContent";
 
 interface IGetAiReviewParams {
   client: SupabaseClient;
@@ -36,8 +38,14 @@ export async function getAiReview({
     return null;
   }
 
+  // 캐시된 content 가 malformed(이번 fix 이전에 저장된 깨진 LLM 출력 등)면
+  // null 을 반환해 호출부가 재생성/재시도로 degrade 하도록 한다 (영구 크래시 방지).
+  if (!isValidReviewContent(data.content)) {
+    return null;
+  }
+
   return {
-    content: data.content as IAiReviewContent,
+    content: data.content,
     summary: (data.summary as string | null) ?? "",
   };
 }
