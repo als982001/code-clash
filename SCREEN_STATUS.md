@@ -76,8 +76,8 @@
 
 ## 마지막 갱신
 
-- **일자**: 2026-05-31 (Step 4.5 MMR — **구현 완료, 브랜치 `feature/step45-mmr`, 미커밋/미머지**. 마이그레이션은 DB 적용 완료)
-- **Step 4.5 완료 (2026-05-31, 브랜치 `feature/step45-mmr`)** — 매치 종료 시 Elo(K=32) MMR 산출 + tier 재산정 + 결과 페이지 변동 정적 표시. **DB 사전 검증 결과 `profiles.mmr`/`tier`/`wins`/`losses`/`streak` + `match_participants.mmr_change` 컬럼이 이미 전부 존재**(문서의 "신설" 가정과 불일치 → "빈 컬럼 채우기"로 재정의). 신규 순수 유틸 `calculateMmr`/`getTierByMmr`(`app/features/match/utils/`), `submit/route.ts` finalize 블록에 service-role 단독 MMR 갱신(best-effort — 실패해도 winner 보존) + `mmrChange` 브로드캐스트 payload, 결과 페이지(`getResultData`/result types/`ParticipantCodeCard`) 변동 표시. **보안**: `profiles.self_update` 가 컬럼 제한 없이 평점 위조 가능하던 write primitive 를 `prevent_protected_profiles_update` 트리거로 차단(마이그레이션 `20260531_protect_profiles_rating_columns.sql`, DB 적용 완료). 스코프: MMR+tier 만(wins/losses/streak 는 기존 `get_profile_stats` RPC 유지로 중복 회피). 기존 finished 3건은 소급 없음(mmr_change NULL → 변동 섹션 숨김). Code Review(opus) Critical 0 / W-1(row 0 가드 누락) fix 반영, W-2(read-modify-write 비원자성) 인지 항목.
+- **일자**: 2026-05-31 (Step 4.5 MMR — **PR #21 dev 머지 완료 `08753ba`**. 마이그레이션은 DB 적용 완료)
+- **Step 4.5 완료 (2026-05-31, PR #21 dev 머지 `08753ba`)** — 매치 종료 시 Elo(K=32) MMR 산출 + tier 재산정 + 결과 페이지 변동 정적 표시. 외부 세션 PR 리뷰 #1(부분 실패 시 화면 모순 — profiles→mmr_change 순서 교체) fix 포함. **DB 사전 검증 결과 `profiles.mmr`/`tier`/`wins`/`losses`/`streak` + `match_participants.mmr_change` 컬럼이 이미 전부 존재**(문서의 "신설" 가정과 불일치 → "빈 컬럼 채우기"로 재정의). 신규 순수 유틸 `calculateMmr`/`getTierByMmr`(`app/features/match/utils/`), `submit/route.ts` finalize 블록에 service-role 단독 MMR 갱신(best-effort — 실패해도 winner 보존) + `mmrChange` 브로드캐스트 payload, 결과 페이지(`getResultData`/result types/`ParticipantCodeCard`) 변동 표시. **보안**: `profiles.self_update` 가 컬럼 제한 없이 평점 위조 가능하던 write primitive 를 `prevent_protected_profiles_update` 트리거로 차단(마이그레이션 `20260531_protect_profiles_rating_columns.sql`, DB 적용 완료). 스코프: MMR+tier 만(wins/losses/streak 는 기존 `get_profile_stats` RPC 유지로 중복 회피). 기존 finished 3건은 소급 없음(mmr_change NULL → 변동 섹션 숨김). Code Review(opus) Critical 0 / W-1(row 0 가드 누락) fix 반영, W-2(read-modify-write 비원자성) 인지 항목.
 - **이전 일자**: 2026-05-31 (Step 4-B AI 리뷰, PR #20 — **dev 머지 완료 `3e440e5`**)
 - **PR**: A PR #18 `feature/step3-profile` (4커밋 push 완료, dev 머지 대기) — **Step 3 프로필 페이지 도입. Step 3 100% 종료.** URL: https://github.com/als982001/code-clash/pull/18
 - **커밋 4건**:
@@ -108,7 +108,7 @@
 - **Step 4-A 완료 (2026-05-30, PR #19 dev 머지)** — `/result/[matchId]` 결과 페이지 신설. server component + status pre-check + Promise.all + Shiki SSR + RLS 자연 게이트. /play finished 배너에 "결과 자세히 보기" Link 추가. MMR은 Phase 4.5로 분리.
 - **Step 4-B 완료 (2026-05-31, PR #20 dev 머지 완료 `3e440e5`)** — `/result/[matchId]`에 AI 코드 리뷰 신설. 외부 2차 리뷰 F1(LLM 출력 런타임 검증)·F3(maybeSingle) fix 포함. 본인 `ai_reviews` SSR 조회(캐싱 히트 즉시 표시) → 없으면 `AiReviewSection`(client)이 `POST /api/match/[matchId]/review` lazy 호출 → Gemini JSON 구조화 출력(복잡도/강점/개선/상대비교). `ai_reviews` write 는 service-role 단독(write primitive 방지), `submission_id` UNIQUE(기존재) + ON CONFLICT 멱등. `@google/genai@^2.7.0` 추가, `AiReviewPlaceholder` → `AiReviewSection` 대체. **DB 스키마 변경 없음.** Code Review(opus) Critical 0 / W-1·W-2·W-3·N-3 fix 반영, W-4(me·opponent DRY) 보류.
 - **다음 PR 후보 (Step 4.5 종료 이후)**:
-  1. **Step 4.5 커밋/PR/머지** — `feature/step45-mmr` 브랜치 커밋 → PR → dev 머지 (사용자 명시 요청 시)
+  1. **MMR 후속** — Step 4.5(PR #21) dev 머지 완료 ✅. #2 read-modify-write 비원자성(동시매치 시 원자 증분 RPC) / #3 schema_migrations 일괄 reconcile / N-1 `profiles.tier` DB CHECK / score 밸런스(0통과 ~500점)
   2. **§D-2 후속 정리** — `match_participants.self_insert`/`self_delete` `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화
   3. **AI 리뷰 후속** — W-4(me·opponent DRY 헬퍼) / Next Step 학습 추천(약점 태그) / 프롬프트 캐싱·토큰 최적화 / `@google/genai` npm 취약점 점검
   4. **코드 리뷰 nit 후속** — placeholder Card 시멘틱 / "다음 PR" 카피 / LoginPage design token 통일 / MMR N-1~3
