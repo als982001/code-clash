@@ -75,7 +75,7 @@
 
 ## 마지막 갱신
 
-- **일자**: 2026-05-31 (Step 4-B AI 리뷰, PR #20 — dev 머지 대기)
+- **일자**: 2026-05-31 (Step 4-B AI 리뷰, PR #20 — **dev 머지 완료 `3e440e5`**)
 - **PR**: A PR #18 `feature/step3-profile` (4커밋 push 완료, dev 머지 대기) — **Step 3 프로필 페이지 도입. Step 3 100% 종료.** URL: https://github.com/als982001/code-clash/pull/18
 - **커밋 4건**:
   - `1190a2f` — feat(profile): Step 3 프로필 페이지 + 닉네임 편집 + fallback 모달 (13 files, +1045/-1)
@@ -103,7 +103,7 @@
   - 다른 라우트/컴포넌트/API 영향 없음
 - **§C Realtime 채널 구조 분석 (2026-05-30 완료)** — `docs/notes/realtime-channels.md` 작성. 채널 분리 / cleanup / polling fallback / 명명 컨벤션 4축 점검. 결론: 구조 유지가 합당, 개선 후보 2건(❶ `useMatchRealtime` cleanup에 `setIsSubscribed(false)` reset 누락 / ❷ polling이 Realtime 살아있을 때 skip 분기 부재)은 별도 PR 후보로 분리
 - **Step 4-A 완료 (2026-05-30, PR #19 dev 머지)** — `/result/[matchId]` 결과 페이지 신설. server component + status pre-check + Promise.all + Shiki SSR + RLS 자연 게이트. /play finished 배너에 "결과 자세히 보기" Link 추가. MMR은 Phase 4.5로 분리.
-- **Step 4-B 완료 (2026-05-31, PR #20 dev 머지 대기)** — `/result/[matchId]`에 AI 코드 리뷰 신설. 본인 `ai_reviews` SSR 조회(캐싱 히트 즉시 표시) → 없으면 `AiReviewSection`(client)이 `POST /api/match/[matchId]/review` lazy 호출 → Gemini JSON 구조화 출력(복잡도/강점/개선/상대비교). `ai_reviews` write 는 service-role 단독(write primitive 방지), `submission_id` UNIQUE(기존재) + ON CONFLICT 멱등. `@google/genai@^2.7.0` 추가, `AiReviewPlaceholder` → `AiReviewSection` 대체. **DB 스키마 변경 없음.** Code Review(opus) Critical 0 / W-1·W-2·W-3·N-3 fix 반영, W-4(me·opponent DRY) 보류.
+- **Step 4-B 완료 (2026-05-31, PR #20 dev 머지 완료 `3e440e5`)** — `/result/[matchId]`에 AI 코드 리뷰 신설. 외부 2차 리뷰 F1(LLM 출력 런타임 검증)·F3(maybeSingle) fix 포함. 본인 `ai_reviews` SSR 조회(캐싱 히트 즉시 표시) → 없으면 `AiReviewSection`(client)이 `POST /api/match/[matchId]/review` lazy 호출 → Gemini JSON 구조화 출력(복잡도/강점/개선/상대비교). `ai_reviews` write 는 service-role 단독(write primitive 방지), `submission_id` UNIQUE(기존재) + ON CONFLICT 멱등. `@google/genai@^2.7.0` 추가, `AiReviewPlaceholder` → `AiReviewSection` 대체. **DB 스키마 변경 없음.** Code Review(opus) Critical 0 / W-1·W-2·W-3·N-3 fix 반영, W-4(me·opponent DRY) 보류.
 - **다음 PR 후보 (Step 4-B 종료 이후)**:
   1. **Step 4.5 진입** — MMR 산출 + 결과 페이지 변동 표시 (brainstorming 필요)
   2. **§D-2 후속 정리** — `match_participants.self_insert`/`self_delete` `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화
