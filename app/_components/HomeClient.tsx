@@ -80,7 +80,7 @@ function SignedInView() {
         <Link href="/dashboard" className="block">
           <Card className="transition-colors hover:bg-muted/50">
             <CardHeader>
-              <CardTitle>대시보드</CardTitle>
+              <CardTitle>대전하기</CardTitle>
               <CardDescription>
                 친구를 초대해서 1:1 대전을 시작하세요.
               </CardDescription>

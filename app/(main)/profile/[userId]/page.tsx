@@ -43,7 +43,7 @@ export default async function ProfilePage({
   const [profileRes, statsRes] = await Promise.all([
     client
       .from("profiles")
-      .select("id, nickname, avatar_url, bio, created_at")
+      .select("id, nickname, avatar_url, bio, created_at, mmr")
       .eq("id", userId)
       .maybeSingle(),
     getProfileStats({ userId, client }),

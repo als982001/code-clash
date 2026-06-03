@@ -75,6 +75,12 @@ export function UserMenu() {
   const avatarUrl = profile?.avatar_url ?? null;
   const { initial } = getAvatarInitial({ nickname });
 
+  const handleGoProfile = () => {
+    if (isSigningOut) return;
+
+    router.push("/profile/me");
+  };
+
   const handleSignOut = async () => {
     if (isSigningOut) return;
 
@@ -138,6 +144,7 @@ export function UserMenu() {
           <DropdownMenuLabel>{nickname ?? "사용자"}</DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={handleGoProfile}>프로필</DropdownMenuItem>
         <DropdownMenuItem
           onClick={handleSignOut}
           disabled={isSigningOut}
