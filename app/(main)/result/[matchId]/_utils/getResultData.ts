@@ -114,11 +114,18 @@ export async function getResultData({
     host_id: string | null;
   };
 
-  if (!matchRow.host_id || !matchRow.problem_id || !matchRow.end_time) {
+  if (!matchRow.problem_id || !matchRow.end_time) {
     return null;
   }
 
-  const hostUserId = matchRow.host_id;
+  // host_id가 있으면(친구 초대 매치) host 기준, 없으면(자동 매칭 매치) user_id 정렬로
+  // 결정론적 슬롯을 배정한다. host/guest는 결과 화면의 좌/우 표시 슬롯일 뿐이며
+  // 승패는 winner_id로 판정하므로 슬롯 라벨 자체는 표시에 영향을 주지 않는다.
+  const sortedParticipants = [...participants].sort((a, b) => {
+    return a.user_id.localeCompare(b.user_id);
+  });
+
+  const hostUserId = matchRow.host_id ?? sortedParticipants[0].user_id;
   const guestParticipant = participants.find((p) => {
     return p.user_id !== hostUserId;
   });
