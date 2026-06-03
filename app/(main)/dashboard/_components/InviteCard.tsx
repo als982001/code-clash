@@ -6,10 +6,12 @@ import { Check, Copy, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { MatchmakingDialog } from "@/app/features/match/components/MatchmakingDialog";
 import type {
   IInviteMatch,
   IInviteResponse,
 } from "@/app/features/match/types/invite";
+import { useAuth } from "@/app/shared/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,6 +32,10 @@ import { Input } from "@/components/ui/input";
 
 export default function InviteCard() {
   const router = useRouter();
+
+  const { user } = useAuth();
+
+  const [matchmakingOpen, setMatchmakingOpen] = useState(false);
 
   const [isCreating, setIsCreating] = useState(false);
   const [inviteData, setInviteData] = useState<IInviteMatch | null>(null);
@@ -150,12 +156,29 @@ export default function InviteCard() {
         </CardContent>
       </Card>
 
-      <Card aria-disabled="true" className="cursor-not-allowed opacity-60">
-        <CardHeader>
-          <CardTitle>자동 매칭</CardTitle>
-          <CardDescription>준비중 — 다음 PR에서 제공됩니다.</CardDescription>
-        </CardHeader>
-      </Card>
+      {user ? (
+        <button
+          type="button"
+          onClick={() => setMatchmakingOpen(true)}
+          className="block text-left"
+        >
+          <Card className="transition-colors hover:bg-muted/50">
+            <CardHeader>
+              <CardTitle>자동 매칭</CardTitle>
+              <CardDescription>
+                비슷한 실력의 상대와 자동으로 대전하세요.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </button>
+      ) : (
+        <Card aria-disabled="true" className="cursor-not-allowed opacity-60">
+          <CardHeader>
+            <CardTitle>자동 매칭</CardTitle>
+            <CardDescription>로그인 후 이용할 수 있습니다.</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
@@ -200,6 +223,14 @@ export default function InviteCard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {user ? (
+        <MatchmakingDialog
+          userId={user.id}
+          open={matchmakingOpen}
+          onOpenChange={setMatchmakingOpen}
+        />
+      ) : null}
     </div>
   );
 }

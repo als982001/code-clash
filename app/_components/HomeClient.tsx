@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
+
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 
+import { MatchmakingDialog } from "@/app/features/match/components/MatchmakingDialog";
 import { UserMenu } from "@/app/shared/components/UserMenu";
 import { useAuth } from "@/app/shared/hooks/useAuth";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -29,7 +32,7 @@ export default function HomeClient() {
             <span className="text-sm">로딩중...</span>
           </div>
         ) : user ? (
-          <SignedInView />
+          <SignedInView userId={user.id} />
         ) : (
           <SignedOutView />
         )}
@@ -57,7 +60,9 @@ function SignedOutView() {
   );
 }
 
-function SignedInView() {
+function SignedInView({ userId }: { userId: string }) {
+  const [matchmakingOpen, setMatchmakingOpen] = useState(false);
+
   return (
     <div className="flex w-full max-w-3xl flex-col gap-8">
       <div className="space-y-1 text-center">
@@ -69,14 +74,20 @@ function SignedInView() {
         </p>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card aria-disabled="true" className="cursor-not-allowed opacity-60">
-          <CardHeader>
-            <CardTitle>매치 찾기</CardTitle>
-            <CardDescription>
-              준비중 — 매칭 큐는 다음 PR에서 제공됩니다.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <button
+          type="button"
+          onClick={() => setMatchmakingOpen(true)}
+          className="block text-left"
+        >
+          <Card className="transition-colors hover:bg-muted/50">
+            <CardHeader>
+              <CardTitle>매치 찾기</CardTitle>
+              <CardDescription>
+                비슷한 실력의 상대와 자동으로 대전하세요.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </button>
         <Link href="/dashboard" className="block">
           <Card className="transition-colors hover:bg-muted/50">
             <CardHeader>
@@ -96,6 +107,12 @@ function SignedInView() {
           </Card>
         </Link>
       </div>
+
+      <MatchmakingDialog
+        userId={userId}
+        open={matchmakingOpen}
+        onOpenChange={setMatchmakingOpen}
+      />
     </div>
   );
 }

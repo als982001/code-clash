@@ -25,7 +25,7 @@ export interface IResultMatch {
   winnerId: string | null;
   endTime: string;
   problemId: string;
-  hostId: string;
+  hostId: string | null;
 }
 
 export interface IResultData {
