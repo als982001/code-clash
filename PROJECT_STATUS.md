@@ -7,6 +7,8 @@
 
 ## 한 줄 진단
 
+**[2026-06-03 최신] MVP 0·1번 완료** — ① **PR #22 (`bf15a08`)**: UserMenu에 프로필(`/profile/me`) 진입 버튼(로그아웃 중 가드) + 홈 "대시보드"→"대전하기" 카피 + 프로필 화면 MMR/tier 배지(`profiles.mmr` select + `getTierByMmr` 파생). ② **PR #23 (`f6910fc`) — 리더보드 MVP A-1**: `/leaderboard` server component. `getLeaderboard`(profiles MMR DESC→created*at ASC, 익명 `Anon*`제외, RLS`TO authenticated USING true`직접 조회 — RPC 불필요) +`rankEntries`(동점 같은 순위 1-2-2-2-5, 한 번 순회) + `LeaderboardView`(순위 리스트, 행 Link로 프로필 이동, 본인 하이라이트, tier/mmr 배지). 진입 동선: 글로벌 헤더(`(main)/layout.tsx`) "리더보드" 링크 + 홈 카드. `/leaderboard` 보호 prefix 추가. **DB 스키마 변경 0**. 전적(승/패)은 **Post-MVP 최우선**(`get_leaderboard` 집계 RPC)으로 분리(`profiles.wins/losses`는 미신뢰 컬럼). 신규 feature `app/features/leaderboard/`(types + getLeaderboard + rankEntries, server-only). 리뷰 fix(익명 유저 제외)는 별도 커밋(`441b98e`). **다음: MVP 2번 자동 매칭 큐(A-2) — 착수 전 B-2(MMR read-modify-write 비원자성) 선처리 검토 + DB 상태 검증.**
+
 **Step 3 100% 종료 (PR #18 dev 머지 완료, `386a406`). §C Realtime 채널 구조 분석 노트 작성 완료 (`docs/notes/realtime-channels.md`, 2026-05-30). Step 4-A `/result/[matchId]` 결과 페이지 PR (브랜치 `feature/step4a-result-page`) 구현 완료 — server component + Promise.all + Shiki SSR + RLS 자연 게이트, /play finished 배너에 "결과 자세히 보기" Link 추가. AI 리뷰는 Step 4-B, MMR은 Phase 4.5로 분리**. 프로필 페이지(`/profile/[userId]` + `/profile/me` + ProfileEditDialog + NicknameFallbackDialog) + PATCH `/api/profile/me` + `get_profile_stats(uuid)` SECURITY DEFINER STABLE RPC(matches/match_participants RLS 우회로 타인 전적 집계) + middleware `/profile` prefix 일반화(비로그인 전체 차단). Code Review fix 2건 + lint fix 1건(`react-hooks/set-state-in-effect` → `useState` lazy initializer) + 다른 세션 PR 리뷰의 P3 review fix 2건(SQL redundant filter 제거 + 성공 분기 isMountedRef 가드) 동일 PR에 반영.
 
 **Step 4-B 완료 (PR #20 dev 머지 완료, `3e440e5` squash)**: `/result/[matchId]`에 AI 코드 리뷰 신설. 본인 `ai_reviews` SSR 조회(캐싱 히트 즉시 표시) → 없으면 `AiReviewSection`(client)이 `POST /api/match/[matchId]/review` lazy 호출 → Gemini JSON 구조화 출력(복잡도/강점/개선/상대비교 — 본인 코드 리뷰 + 상대 코드 비교 컨텍스트). `ai_reviews` write 정책 부재(default deny) 유지 → INSERT는 service-role 단독(write primitive 방지, score/winner fix와 동일 패턴). `submission_id` UNIQUE(`ai_reviews_submission_id_key`) 기존재 + `ON CONFLICT DO NOTHING` + 저장값 재조회로 멱등. `@google/genai@^2.7.0` 추가, `AiReviewPlaceholder` → `AiReviewSection` 대체. **DB 스키마 변경 없음.** Code Review(opus) Critical 0 / W-1·W-2·W-3·N-3 fix 반영, W-4(me·opponent DRY) 별도 보류.
@@ -408,7 +410,15 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
-- **일자**: 2026-05-31 (Step 4.5 MMR 구현 완료)
+- **일자**: 2026-06-03 (MVP 0·1번 — 프로필 진입점/MMR 표시 + 리더보드 MVP 완료)
+- **시점**: **PR #22(`bf15a08`) + PR #23(`f6910fc`) dev 머지 완료**. 0번 UX 개선(프로필 진입점 + 홈 카피 + 프로필 MMR/tier 배지) + 1번 리더보드 MVP(A-1). 각각 agent-team-workflow(opus) + Code Review(opus). 리더보드 진행 중 GitHub Desktop ↔ CLI 동시 조작으로 stash pop 충돌 1회 발생 후 해소.
+- **리더보드 요약**: `/leaderboard` server component — `getLeaderboard`(profiles MMR DESC→created*at ASC, 익명 `Anon*`제외, RLS 전체 read 직접 조회) +`rankEntries`(동점 같은 순위 1-2-2-2-5, 한 번 순회) + `LeaderboardView`(순위 리스트, 행 Link 프로필 이동, 본인 하이라이트, tier/mmr 배지). 진입: 글로벌 헤더 링크 + 홈 카드. `/leaderboard` 보호 prefix. **DB 스키마 변경 0**. 전적은 Post-MVP 최우선(`get_leaderboard` 집계 RPC)으로 분리.
+- **다음 액션**: **MVP 2번 자동 매칭 큐(A-2)** — 착수 전 B-2(MMR read-modify-write 비원자성) 선처리 검토 + DB 상태 검증 + brainstorming→spec→plan(신규 도메인). 이후 3번 프로필 역량 분석(A-3). Post-MVP 최우선은 리더보드 전적 RPC. (상세 우선순위는 `docs/NEXT_SESSION.md` SoT)
+
+---
+
+### 이전 갱신 (2026-05-31, Step 4.5 MMR)
+
 - **시점**: Step 4.5 MMR 산출 **PR #21 dev 머지 완료 (`08753ba`, squash)**. 마이그레이션은 사용자가 DB 직접 적용 완료. brainstorming + spec(`docs/superpowers/specs/2026-05-31-step45-mmr-design.md`) + plan(`docs/superpowers/plans/2026-05-31-step45-mmr.md`) → agent-team-workflow(opus) 구현 → Code Review(opus) 2회 + 외부 세션 PR 리뷰 → 리뷰 #1(부분 실패 시 화면 모순 — profiles→mmr_change 순서 교체) fix → 머지.
 - **변경 요약**: 신규 `app/features/match/utils/calculateMmr.ts`(Elo K=32 순수함수) + `getTierByMmr.ts`(5단계 200간격) + 마이그레이션 `20260531_protect_profiles_rating_columns.sql` / 수정 `submit/route.ts`(finalize 블록에 service-role MMR 갱신 + mmrChange payload)·`getResultData.ts`(mmr_change/mmr/tier select)·result types(`IResultParticipant`에 mmrChange/currentMmr/tier)·`ParticipantCodeCard.tsx`(변동 정적 표시). **DB 스키마 변경 없음** — 평점 컬럼이 이미 전부 존재(DB 검증으로 확인, "신설"→"빈 컬럼 채우기"로 재정의).
 - **보안**: `profiles.self_update` 가 컬럼 제한 없이 mmr/tier 위조 가능하던 write primitive 를 `prevent_protected_profiles_update` 트리거로 차단(보호 컬럼 7종 OLD 고정, service_role 우회). PR #16의 score/winner write primitive 와 동일 패턴. self_update 정책은 유지(nickname/bio 편집 보존).
