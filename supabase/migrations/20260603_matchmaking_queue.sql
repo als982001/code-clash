@@ -92,6 +92,14 @@ BEGIN
   IF NOT FOUND THEN
     -- (c) 상대 없음 → 내 큐 row 등록 후 매칭 안 됨 반환.
     -- ON CONFLICT 로 동시 재진입(더블클릭) 시 23505 대신 같은 row 를 waiting 으로 갱신.
+    --
+    -- ⚠️ 알려진 한계 (동시 진입 데드락 — B-8 후속):
+    --   유저 A·B 가 거의 동시에 join 하면, 서로 (b) 탐색 시점에 상대가 아직 INSERT 전이라
+    --   둘 다 NOT FOUND → 둘 다 waiting 등록 → 누구도 상대를 못 봐 무한 대기에 빠질 수 있다.
+    --   클라 폴링/Realtime 은 match_id 만 감시할 뿐 재매칭을 트리거하지 않으므로, 한쪽이
+    --   취소 후 재진입해야 해소된다. 동접 극소 전제(윈도우 수십 ms)라 발생 확률이 낮고
+    --   취소→재진입 UX 가 이미 있어 MVP 범위로 보류. 동접이 늘면 (a) 클라 N초 후 join 1회
+    --   재시도 또는 (b) RPC 큐 재스캔 도입을 검토한다.
     INSERT INTO public.matchmaking_queue (user_id, mmr, status)
       VALUES (p_user_id, p_mmr, 'waiting')
     ON CONFLICT (user_id) DO UPDATE

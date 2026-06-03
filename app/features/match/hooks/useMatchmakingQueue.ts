@@ -76,6 +76,9 @@ export function useMatchmakingQueue({
 
   // ── Effect 2: 폴링 fallback (5초) ──────────────────────────────────
   // 대기 중 빠른 반응이 필요하므로 useMatchStatus(30초)보다 짧게 둔다.
+  // ⚠️ 한계(B-8): 폴링은 자기 큐 row 의 match_id 채워짐만 감지하고 재매칭을 트리거하지 않는다.
+  // 두 유저가 거의 동시에 진입해 둘 다 waiting 으로 남는 동시 진입 데드락(RPC 주석 참고)은
+  // 여기서 해소되지 않으며, 취소→재진입으로만 풀린다. 동접 극소 전제라 MVP 범위로 보류.
   useEffect(() => {
     if (!enabled) return;
 
