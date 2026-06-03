@@ -126,7 +126,12 @@ END;
 $$;
 
 -- 클라이언트 직접 호출 차단 — API 라우트의 service-role 클라이언트만 호출.
+-- ⚠️ Supabase 는 public 스키마 함수 생성 시 default privileges 로 anon/authenticated 에
+-- EXECUTE 를 자동 부여한다. REVOKE FROM PUBLIC 만으로는 이 직접 grant 가 지워지지 않으므로
+-- anon/authenticated 를 명시적으로 REVOKE 해야 SECURITY DEFINER RPC(RLS 우회)가 클라이언트에
+-- 노출되지 않는다. (미적용 시 인가 사용자가 PostgREST 로 임의 p_user_id/p_mmr 매칭·매치 생성 가능)
 REVOKE ALL ON FUNCTION public.find_or_enqueue_match(uuid, integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.find_or_enqueue_match(uuid, integer) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.find_or_enqueue_match(uuid, integer) TO service_role;
 
 COMMIT;
