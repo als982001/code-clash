@@ -14,6 +14,7 @@ export interface IProfile {
   avatar_url: string | null;
   bio: string | null;
   created_at: string | null;
+  mmr: number | null;
 }
 
 /**
