@@ -9,6 +9,9 @@ export const PROTECTED_PREFIXES = [
   // /profile 전체를 가드 — /profile/me + /profile/[userId] 모두 SSR 단계에서 비로그인 차단.
   // (Step 3 PR #18: 타인 프로필도 로그인 후 진입 정책)
   "/profile",
+  // 리더보드 — profiles RLS가 TO authenticated라 비로그인은 어차피 데이터를 못 읽는다.
+  // 빈 화면 대신 /login으로 보내는 게 일관적 (MVP A-1)
+  "/leaderboard",
 ] as const;
 
 /**

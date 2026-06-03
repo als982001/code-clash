@@ -64,7 +64,7 @@ app/
 │   └── result/[matchId]/_utils/highlightCode.ts               ✅  server-only — Shiki + escape 폴백 (PR Step 4-A)
 │   ├── dashboard/page.tsx        ✅  친구 초대 카드 (PR #7-D, B PR에서 임시 헤더 + 외곽 wrapper 제거)
 │   ├── dashboard/_components/InviteCard.tsx ✅  POST /api/match/invite → Dialog (PR #7-D)
-│   ├── leaderboard/              ⏳  빈 디렉토리 (장기)
+│   ├── leaderboard/page.tsx     ✅  MVP A-1 — server component, getLeaderboard(MMR DESC) + LeaderboardView (순위 리스트, 프로필 Link, 본인 하이라이트, 전적 제외)
 │   ├── profile/[userId]/page.tsx ✅  server component — Promise.all로 profile + get_profile_stats RPC 병렬 fetch + isMe 분기 (PR #18)
 │   ├── profile/[userId]/_components/ProfileView.tsx ✅  Avatar/닉네임/가입일/bio/누적 전적 + 본인이면 편집 버튼 + 자동 닉네임이면 fallback 자동 발화 (PR #18)
 │   ├── profile/[userId]/_components/ProfileEditDialog.tsx ✅  nickname/bio 편집, isMountedRef + Strict Mode reset, queryClient.invalidateQueries(AUTH_QUERY_KEY) + router.refresh() (PR #18)
@@ -209,7 +209,7 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 | `app/(main)/profile/[id]/`   | ✅   | 서버 컴포넌트 + ProfileView + ProfileEditDialog + NicknameFallbackDialog. middleware `/profile` prefix 일반화로 `/profile/me` + `/profile/[userId]` 둘 다 비로그인 차단 (PR #18) |
 | `app/(main)/profile/me/`     | ✅   | server component — auth.getUser() → redirect(/profile/${user.id}) (PR #18)                                                                                                       |
 | `app/api/profile/me/`        | ✅   | PATCH 본인 프로필 갱신 (PR #18)                                                                                                                                                  |
-| `app/(main)/leaderboard/`    | ⏳   | 명세 미정 (장기)                                                                                                                                                                 |
+| `app/(main)/leaderboard/`    | ✅   | MVP A-1 — `profiles` MMR DESC 정렬 순위 화면(전적 제외, server component). 전적은 Post-MVP 최우선(`get_leaderboard` RPC)                                                         |
 | `app/(main)/result/[id]/`    | ✅   | Step 4-A(결과) + Step 4-B(AI 리뷰, PR #20) 완료 — server component + Shiki SSR + AI 리뷰 SSR 조회/lazy 생성 (`AiReviewSection`)                                                  |
 | `app/api/match/[id]/review/` | ✅   | AI 코드 리뷰 생성/조회 API (PR Step 4-B). `app/api/ai/` 디렉토리는 미사용                                                                                                        |
 | `app/features/review/`       | ✅   | types + utils(generateReview / getAiReview) (PR Step 4-B)                                                                                                                        |
