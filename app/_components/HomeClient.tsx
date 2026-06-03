@@ -68,7 +68,7 @@ function SignedInView() {
           매치 시작 또는 대시보드로 이동하세요.
         </p>
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card aria-disabled="true" className="cursor-not-allowed opacity-60">
           <CardHeader>
             <CardTitle>매치 찾기</CardTitle>
@@ -84,6 +84,14 @@ function SignedInView() {
               <CardDescription>
                 친구를 초대해서 1:1 대전을 시작하세요.
               </CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
+        <Link href="/leaderboard" className="block">
+          <Card className="transition-colors hover:bg-muted/50">
+            <CardHeader>
+              <CardTitle>리더보드</CardTitle>
+              <CardDescription>MMR 순위를 확인하세요.</CardDescription>
             </CardHeader>
           </Card>
         </Link>
