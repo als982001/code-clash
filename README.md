@@ -52,13 +52,15 @@
 - service-role 원자 매칭 RPC(`FOR UPDATE SKIP LOCKED`)로 동시 진입 race 차단
 - 무한 대기 + 취소 지원 (상대가 없으면 큐에서 대기, 취소 시 즉시 큐 이탈)
 
-<!-- TODO: 자동 매칭 대기 화면 스크린샷 추가 (public/images/matchmaking.png) -->
+![자동 매칭 대기 화면](public/images/matchmaking.png)
 
 ### 결과 & AI 리뷰
 
 - 대전 종료 후 `/result/[matchId]` 결과 화면 — 승/패/무 판정 + 양쪽 점수 + 제출 코드 비교(Shiki SSR 하이라이팅)
 - Google Gemini 기반 AI 코드 리뷰 — 시간 복잡도 분석·강점·개선점·상대 코드 비교를 구조화 출력
 - 리뷰는 최초 1회 생성 후 캐싱 — 재진입 시 즉시 표시
+
+![결과 & AI 리뷰 화면](public/images/result-ai-review.png)
 
 ### MMR & 티어
 
@@ -72,7 +74,7 @@
 - 각 행 클릭 시 해당 유저 프로필로 이동
 - 익명 게스트 계정은 순위에서 제외
 
-<!-- TODO: 리더보드 화면 스크린샷 추가 (public/images/leaderboard.png) -->
+![리더보드 화면](public/images/leaderboard.png)
 
 ## 기술 스택
 
