@@ -164,4 +164,9 @@ app/
   - ✅ `/result/[matchId]` 결과 화면 (Step 4-A, PR #19)
   - ✅ Gemini 기반 AI 코드 리뷰 + 캐싱 (Step 4-B, PR #20)
 - [x] **Step 4.5** — MMR 시스템 (Elo K=32 산출 + 티어 + 결과 변동 표시, PR #21)
-- [ ] **Step 5** — 커뮤니티 (자동 매칭 큐, 리더보드, 역량 분석, AI 대전 상대)
+- [~] **Step 5** — 커뮤니티
+  - ✅ 리더보드 (`/leaderboard`, MMR 순위, MVP A-1, PR #23)
+  - ✅ 자동 매칭 큐 (`matchmaking_queue` + 원자 매칭 RPC, MVP A-2, PR #24)
+  - [ ] 리더보드 전적 표시 (승/패/승률 집계 RPC, **Post-MVP 최우선**)
+  - [ ] 프로필 역량 분석 (태그별 방사형 차트, **Post-MVP** — 매치 데이터 축적 후)
+  - [ ] AI 대전 상대 (Bot, **Post-MVP**)
