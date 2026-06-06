@@ -31,7 +31,7 @@ import WaitingForGameStart from "@/app/play/[matchId]/_components/WaitingForGame
 import { buttonVariants } from "@/components/ui/button-variants";
 
 /** 대전 제한 시간 (초) - 15분 */
-const MATCH_DURATION_SECONDS = 9000; // 로컬 테스트용으로 시간 900에서 9000으로 변경했음.
+const MATCH_DURATION_SECONDS = 900;
 
 interface IPlayPageProps {
   params: Promise<{ matchId: string }>;
