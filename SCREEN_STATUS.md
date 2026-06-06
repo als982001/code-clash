@@ -83,7 +83,7 @@
 
 ## 마지막 갱신
 
-- **일자**: 2026-06-06 (**글로벌 네비 메뉴바 추가 + 홈 "매치 찾기" 카드 제거** — 브랜치 `feature/global-nav-and-home-card-cleanup`)
+- **일자**: 2026-06-06 (**글로벌 네비 메뉴바 추가 + 홈 "매치 찾기" 카드 제거** — PR #26 `94020d9` dev 머지 완료)
 - **글로벌 네비 메뉴바 + 홈 카드 정리 (2026-06-06)** — ① 신규 공용 `GlobalNav`(홈/대전하기/리더보드, `usePathname` active 강조 + `aria-current`, base-ui `buttonVariants` 패턴, 모바일 `min-w-0 overflow-x-auto`)를 `(main)/layout.tsx`(기존 "리더보드" 단일 링크 대체) + `HomeClient` 헤더 양쪽에 마운트 → 홈과 (main) 페이지가 동일 메뉴바. ② 홈 "매치 찾기" 카드 제거(대시보드 "자동 매칭"과 기능 중복) → 카드 2개 `md:grid-cols-2`, `MatchmakingDialog`/`matchmakingOpen` state/`useState`·`MatchmakingDialog` import/`userId` prop dead code 일괄 정리. 대시보드 자동 매칭은 유지. agent-team-workflow(opus) Analyzer→Writer→Reviewer, Critical/Warning 0. browse로 데스크탑/375px/320px 헤더 + overflow·콘솔에러 0 확인.
 - **이전 일자**: 2026-06-06 (**ProblemPanel 섹션 카드 + problems 구조화 컬럼 분리** — PR #25 `6249e74` dev 머지 완료)
 - **ProblemPanel 섹션 카드 (2026-06-06)** — `/play` 좌측 문제 패널이 단일 `description` 마크다운이라 문제설명/입력/출력/예시 시각 구분이 약하던 문제 해결. **DB 구조 분리**(`problems.description`→문제설명 본문만, `input_format`/`output_format` TEXT NOT NULL, `examples` JSONB `[{input,output,explanation?}]` 다중 예시)로 근본 해결 후 렌더는 컬럼 직접 사용. 신규 컴포넌트 `ProblemMetaHeader`(메타) + `ProblemSection`(📝 문제설명/📥 입력/📤 출력 카드, 마크다운 본문) + `ProblemExampleSection`(예시 입출력 `<pre>` 카드 + explanation ReactMarkdown, 다중 예시 "예시 N" 라벨). `parseProblemDescription` 파싱 유틸 제거. **AI 리뷰 회귀 방지**: `review/route.ts`가 분리 4필드를 재조합해 Gemini 전달. 마이그레이션 2개(`20260606_problems_structured_columns.sql` 백필+검증+NOT NULL+백업테이블 / `20260606_seed_problems_structured.sql` 신규 시드). **DB 적용·MCP 검증 완료**(9건 분리·NOT NULL·explanation 2건). agent-team-workflow(opus), Code Review Critical 0 / W-1·W-2 fix. 화면 확인 완료. schema_migrations 미기록(B-4 대상).
