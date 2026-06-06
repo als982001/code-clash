@@ -7,7 +7,7 @@
 
 ## 한 줄 진단
 
-**[2026-06-06 최신²] `problems.description` 구조화 컬럼 분리 + ProblemPanel 섹션 카드 디자인 (브랜치 `feature/problem-panel-section-cards`, dev 머지 전).** 문제 패널의 문제설명/입력형식/출력형식/예시가 단일 마크다운(`description`)이라 시각 구분이 약하던 문제를, **DB 레벨에서 구조 분리**로 근본 해결. `problems`에 `input_format`/`output_format` TEXT NOT NULL + `examples` JSONB NOT NULL(`[{input,output,explanation?}]` 배열, 다중 예시 지원) 추가, `description`은 "문제 설명" 본문만 의미 변경. 기존 9건은 id 유지 UPDATE 백필(matches/test_cases FK 무영향, 원본 백업 테이블 보존), #8 계단오르기·#9 LIS의 `### 설명`은 `examples[].explanation`으로 보존. 렌더는 마크다운 파싱(임시 구현) 폐기 → 컬럼 직접 사용. 신규 컴포넌트 `ProblemMetaHeader`/`ProblemSection`/`ProblemExampleSection`(섹션 카드, 예시 입출력 `<pre>` 카드 + explanation ReactMarkdown), `parseProblemDescription` 유틸 제거. **AI 리뷰 회귀 방지**: `review/route.ts`가 분리된 4필드를 재조합해 Gemini에 전달(맥락 손실 차단). 마이그레이션 `20260606_problems_structured_columns.sql`(백필+검증 DO 블록 자동 롤백+NOT NULL, 백업 테이블 RLS/REVOKE) + 신규 시드 `20260606_seed_problems_structured.sql`. **DB 적용 완료·MCP 검증**(9건 분리 정상, NOT NULL 적용, explanation 2건). agent-team-workflow(opus) Analyzer→Writer→Reviewer. Code Review Critical 0 / W-1(백업테이블 노출 차단) W-2(검증 자동실패) fix 반영. 화면 확인 완료. **schema_migrations 미기록**(SQL Editor 직접 실행, B-4 reconcile 대상).
+**[2026-06-06 최신²] `problems.description` 구조화 컬럼 분리 + ProblemPanel 섹션 카드 디자인 (PR #25 `6249e74` dev 머지 완료).** 문제 패널의 문제설명/입력형식/출력형식/예시가 단일 마크다운(`description`)이라 시각 구분이 약하던 문제를, **DB 레벨에서 구조 분리**로 근본 해결. `problems`에 `input_format`/`output_format` TEXT NOT NULL + `examples` JSONB NOT NULL(`[{input,output,explanation?}]` 배열, 다중 예시 지원) 추가, `description`은 "문제 설명" 본문만 의미 변경. 기존 9건은 id 유지 UPDATE 백필(matches/test_cases FK 무영향, 원본 백업 테이블 보존), #8 계단오르기·#9 LIS의 `### 설명`은 `examples[].explanation`으로 보존. 렌더는 마크다운 파싱(임시 구현) 폐기 → 컬럼 직접 사용. 신규 컴포넌트 `ProblemMetaHeader`/`ProblemSection`/`ProblemExampleSection`(섹션 카드, 예시 입출력 `<pre>` 카드 + explanation ReactMarkdown), `parseProblemDescription` 유틸 제거. **AI 리뷰 회귀 방지**: `review/route.ts`가 분리된 4필드를 재조합해 Gemini에 전달(맥락 손실 차단). 마이그레이션 `20260606_problems_structured_columns.sql`(백필+검증 DO 블록 자동 롤백+NOT NULL, 백업 테이블 RLS/REVOKE) + 신규 시드 `20260606_seed_problems_structured.sql`. **DB 적용 완료·MCP 검증**(9건 분리 정상, NOT NULL 적용, explanation 2건). agent-team-workflow(opus) Analyzer→Writer→Reviewer. Code Review Critical 0 / W-1(백업테이블 노출 차단) W-2(검증 자동실패) fix 반영. 화면 확인 완료. **schema_migrations 미기록**(SQL Editor 직접 실행, B-4 reconcile 대상).
 
 **[2026-06-06] MVP 범위 재정의 — A-3 프로필 역량 분석을 Post-MVP로 이동. MVP는 0·1·2(UX 개선/리더보드/자동 매칭 큐)까지로 핵심 완료.** 역량 분석(태그별 강점/약점 방사형 차트)은 매치 데이터가 충분히 쌓인 뒤에야 통계적 의미가 생기는 후행 기능 — 실측 DB(finished 매치 7건 / submissions 14건 / 유저 5명 / 태그 6종: Array·String·DP·Hash·Math·Stack)에서 태그당 표본이 1~2건이라 대부분 "데이터 부족" 폴백만 노출되어 MVP 실질 가치가 낮음 → 데이터 축적 후 착수가 합리적. **MVP 핵심 루프(매칭 → 대전 → 결과 → AI 리뷰 → MMR → 리더보드)는 전부 완성.** 코드 변경 없는 문서 정리 세션(BLUEPRINT/README/NEXT_SESSION/PROJECT_STATUS/SCREEN_STATUS 5종 동기화, dev 직접 커밋). **다음 권장: ① A-2 실매치 런타임 검증 → ② Post-MVP 최우선 리더보드 전적 표시(`get_leaderboard` 집계 RPC, 승/패/승률).** Post-MVP 우선순위: ① 리더보드 전적 → ② 프로필 역량 분석(A-3, 데이터 축적 후) → ③ AI 대전 봇(A-4).
 
@@ -422,12 +422,12 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
-- **일자**: 2026-06-06 (**problems 구조화 컬럼 분리 + ProblemPanel 섹션 카드** — 브랜치 `feature/problem-panel-section-cards`, dev 머지 전)
+- **일자**: 2026-06-06 (**problems 구조화 컬럼 분리 + ProblemPanel 섹션 카드** — PR #25 `6249e74` dev 머지 완료)
 - **배경**: 문제 패널의 문제설명/입력/출력/예시가 단일 `description` 마크다운이라 시각 구분 약함 → 처음엔 렌더 레이어 파싱으로 해결했으나, 사용자가 "테이블 설계 문제" 지적 → **DB 구조 분리**로 근본 해결 전환.
 - **DB**: `input_format`/`output_format` TEXT NOT NULL + `examples` JSONB NOT NULL(`[{input,output,explanation?}]` 다중 예시) 추가, `description`=문제설명 본문만. 9건 id 유지 UPDATE 백필(FK 무영향, 원본 백업 테이블 보존), #8/#9 `### 설명`→explanation. **MCP 검증 완료**(9건 분리·NOT NULL·explanation 2건). schema_migrations 미기록(SQL Editor 직접 실행, B-4 대상).
 - **코드**: 파싱 폐기→컬럼 직접 사용. 신규 `ProblemMetaHeader`/`ProblemSection`/`ProblemExampleSection`, `parseProblemDescription` 제거, `IProblem` 확장. **AI 리뷰 회귀 방지**(review/route.ts 4필드 재조합). 마이그레이션 2개(구조화+신규시드).
 - **워크플로우**: agent-team-workflow(opus) Analyzer→Writer→Reviewer. Code Review Critical 0 / W-1(백업테이블 RLS·REVOKE) W-2(검증 자동실패 DO 블록) fix 반영. 화면 확인 완료.
-- **다음**: dev 머지(사용자 요청 시) → Post-MVP 최우선 리더보드 전적 RPC.
+- **다음**: Post-MVP 최우선 리더보드 전적 RPC(`get_leaderboard` 집계, 승/패/승률). (참고: 테스트용 대전시간 9000초 커밋이 PR에 섞였던 것은 `feb967b`로 900 복원하여 dev엔 15분 유지)
 
 ### 이전 갱신 (2026-06-06, MVP 범위 재정의 — A-3 Post-MVP 이동)
 

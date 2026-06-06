@@ -82,7 +82,7 @@
 
 ## 마지막 갱신
 
-- **일자**: 2026-06-06 (**ProblemPanel 섹션 카드 + problems 구조화 컬럼 분리** — 브랜치 `feature/problem-panel-section-cards`, dev 머지 전)
+- **일자**: 2026-06-06 (**ProblemPanel 섹션 카드 + problems 구조화 컬럼 분리** — PR #25 `6249e74` dev 머지 완료)
 - **ProblemPanel 섹션 카드 (2026-06-06)** — `/play` 좌측 문제 패널이 단일 `description` 마크다운이라 문제설명/입력/출력/예시 시각 구분이 약하던 문제 해결. **DB 구조 분리**(`problems.description`→문제설명 본문만, `input_format`/`output_format` TEXT NOT NULL, `examples` JSONB `[{input,output,explanation?}]` 다중 예시)로 근본 해결 후 렌더는 컬럼 직접 사용. 신규 컴포넌트 `ProblemMetaHeader`(메타) + `ProblemSection`(📝 문제설명/📥 입력/📤 출력 카드, 마크다운 본문) + `ProblemExampleSection`(예시 입출력 `<pre>` 카드 + explanation ReactMarkdown, 다중 예시 "예시 N" 라벨). `parseProblemDescription` 파싱 유틸 제거. **AI 리뷰 회귀 방지**: `review/route.ts`가 분리 4필드를 재조합해 Gemini 전달. 마이그레이션 2개(`20260606_problems_structured_columns.sql` 백필+검증+NOT NULL+백업테이블 / `20260606_seed_problems_structured.sql` 신규 시드). **DB 적용·MCP 검증 완료**(9건 분리·NOT NULL·explanation 2건). agent-team-workflow(opus), Code Review Critical 0 / W-1·W-2 fix. 화면 확인 완료. schema_migrations 미기록(B-4 대상).
 - **이전 일자**: 2026-06-06 (**MVP 범위 재정의 — A-3 프로필 역량 분석 Post-MVP 이동**. 문서 정리 전용 세션, 화면/코드 변경 없음)
 - **A-3 Post-MVP 이동 (2026-06-06)** — 프로필 역량 분석(`/profile/[userId]` 확장, 태그별 강점/약점 방사형 차트)을 MVP → Post-MVP 로 이동. 사유: 매치 데이터 축적 부족(finished 7건 / submissions 14건 / 유저 5명 / 태그 6종 → 태그당 표본 1~2건)으로 MVP 단계에서 "데이터 부족" 폴백만 노출 → 실질 가치 낮음. **신규 라우트/화면 없음** — `/profile/[userId]` 는 현재 상태(✅, ProfileView + 전적 + MMR/tier 배지) 그대로 유지. 역량 분석 차트는 Post-MVP 착수 시 신규 섹션으로 추가 예정. MVP 핵심 화면 루프(`/` → 매칭 → `/play` → `/result` → `/leaderboard` → `/profile`)는 전부 ✅. **다음 권장: A-2 실매치 런타임 검증 → Post-MVP 리더보드 전적 표시(`/leaderboard` 확장).**
