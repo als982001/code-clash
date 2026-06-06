@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { IProblemExample } from "@/app/features/problem/types";
 import { generateReview } from "@/app/features/review/utils/generateReview";
 import { getAiReview } from "@/app/features/review/utils/getAiReview";
 import type { IAiReview } from "@/app/features/review/types";
@@ -104,10 +105,10 @@ export async function POST(
     .neq("user_id", userId)
     .maybeSingle();
 
-  // 문제 지문
+  // 문제 지문 (구조화 컬럼 → 단일 프롬프트 문자열로 재조합)
   const { data: problem } = await client
     .from("problems")
-    .select("title, description")
+    .select("title, description, input_format, output_format, examples")
     .eq("id", match.problem_id)
     .single();
 
@@ -118,13 +119,33 @@ export async function POST(
     );
   }
 
+  const examples = (problem.examples ?? []) as IProblemExample[];
+
+  const exampleText = examples
+    .map((ex, i) => {
+      const head = examples.length > 1 ? `예시 ${i + 1}` : "예시";
+      const expl = ex.explanation ? `\n설명:\n${ex.explanation}` : "";
+
+      return `${head}\n입력:\n${ex.input}\n출력:\n${ex.output}${expl}`;
+    })
+    .join("\n\n");
+
+  const problemDescription = [
+    problem.description,
+    `## 입력 형식\n${problem.input_format}`,
+    `## 출력 형식\n${problem.output_format}`,
+    exampleText ? `## 예시\n${exampleText}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
   // Gemini 호출
   let review: IAiReview;
 
   try {
     review = await generateReview({
       problemTitle: problem.title,
-      problemDescription: problem.description ?? "",
+      problemDescription,
       myCode: mySubmission.code,
       myLanguage: mySubmission.language,
       myPassedCases: mySubmission.passed_cases ?? 0,

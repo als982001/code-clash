@@ -31,7 +31,9 @@ export async function GET(
 
   const { data: problem, error: problemError } = await client
     .from("problems")
-    .select("*")
+    .select(
+      "id, title, description, input_format, output_format, examples, difficulty, time_limit, memory_limit, tags",
+    )
     .eq("id", problemId)
     .single();
 
