@@ -83,50 +83,9 @@
 
 ## 마지막 갱신
 
-- **일자**: 2026-06-06 (**글로벌 네비 메뉴바 추가 + 홈 "매치 찾기" 카드 제거** — PR #26 `94020d9` dev 머지 완료)
-- **글로벌 네비 메뉴바 + 홈 카드 정리 (2026-06-06)** — ① 신규 공용 `GlobalNav`(홈/대전하기/리더보드, `usePathname` active 강조 + `aria-current`, base-ui `buttonVariants` 패턴, 모바일 `min-w-0 overflow-x-auto`)를 `(main)/layout.tsx`(기존 "리더보드" 단일 링크 대체) + `HomeClient` 헤더 양쪽에 마운트 → 홈과 (main) 페이지가 동일 메뉴바. ② 홈 "매치 찾기" 카드 제거(대시보드 "자동 매칭"과 기능 중복) → 카드 2개 `md:grid-cols-2`, `MatchmakingDialog`/`matchmakingOpen` state/`useState`·`MatchmakingDialog` import/`userId` prop dead code 일괄 정리. 대시보드 자동 매칭은 유지. agent-team-workflow(opus) Analyzer→Writer→Reviewer, Critical/Warning 0. browse로 데스크탑/375px/320px 헤더 + overflow·콘솔에러 0 확인.
-- **이전 일자**: 2026-06-06 (**ProblemPanel 섹션 카드 + problems 구조화 컬럼 분리** — PR #25 `6249e74` dev 머지 완료)
-- **ProblemPanel 섹션 카드 (2026-06-06)** — `/play` 좌측 문제 패널이 단일 `description` 마크다운이라 문제설명/입력/출력/예시 시각 구분이 약하던 문제 해결. **DB 구조 분리**(`problems.description`→문제설명 본문만, `input_format`/`output_format` TEXT NOT NULL, `examples` JSONB `[{input,output,explanation?}]` 다중 예시)로 근본 해결 후 렌더는 컬럼 직접 사용. 신규 컴포넌트 `ProblemMetaHeader`(메타) + `ProblemSection`(📝 문제설명/📥 입력/📤 출력 카드, 마크다운 본문) + `ProblemExampleSection`(예시 입출력 `<pre>` 카드 + explanation ReactMarkdown, 다중 예시 "예시 N" 라벨). `parseProblemDescription` 파싱 유틸 제거. **AI 리뷰 회귀 방지**: `review/route.ts`가 분리 4필드를 재조합해 Gemini 전달. 마이그레이션 2개(`20260606_problems_structured_columns.sql` 백필+검증+NOT NULL+백업테이블 / `20260606_seed_problems_structured.sql` 신규 시드). **DB 적용·MCP 검증 완료**(9건 분리·NOT NULL·explanation 2건). agent-team-workflow(opus), Code Review Critical 0 / W-1·W-2 fix. 화면 확인 완료. schema_migrations 미기록(B-4 대상).
-- **이전 일자**: 2026-06-06 (**MVP 범위 재정의 — A-3 프로필 역량 분석 Post-MVP 이동**. 문서 정리 전용 세션, 화면/코드 변경 없음)
-- **A-3 Post-MVP 이동 (2026-06-06)** — 프로필 역량 분석(`/profile/[userId]` 확장, 태그별 강점/약점 방사형 차트)을 MVP → Post-MVP 로 이동. 사유: 매치 데이터 축적 부족(finished 7건 / submissions 14건 / 유저 5명 / 태그 6종 → 태그당 표본 1~2건)으로 MVP 단계에서 "데이터 부족" 폴백만 노출 → 실질 가치 낮음. **신규 라우트/화면 없음** — `/profile/[userId]` 는 현재 상태(✅, ProfileView + 전적 + MMR/tier 배지) 그대로 유지. 역량 분석 차트는 Post-MVP 착수 시 신규 섹션으로 추가 예정. MVP 핵심 화면 루프(`/` → 매칭 → `/play` → `/result` → `/leaderboard` → `/profile`)는 전부 ✅. **다음 권장: A-2 실매치 런타임 검증 → Post-MVP 리더보드 전적 표시(`/leaderboard` 확장).**
-- **이전 일자**: 2026-06-03 (MVP A-2 자동 매칭 큐 — **PR #24 dev 머지(`19d0f6b`) + 마이그레이션 2개 DB 적용·MCP 검증 완료**. MVP 0·1·2 완료, 마지막 3번 A-3만 남음)
-- **MVP A-2 자동 매칭 큐 (2026-06-03, PR #24 머지 + DB 적용 완료)** — `invite_token` 없이 두 유저를 MMR 기반 자동 매칭. 신규 `matchmaking_queue` 테이블 + service-role 원자 매칭 RPC `find_or_enqueue_match`(`FOR UPDATE SKIP LOCKED`, 대기 상대 MMR 가장 가까운 1명, 없으면 큐 등록 ON CONFLICT 멱등) + join/leave API + `MatchmakingDialog` 공용 모달(홈/대시보드 placeholder 2곳 활성화) + `useMatchmakingQueue` 훅(Realtime+5초 폴링). 자동 매칭 매치는 `host_id=NULL`이라 **`getResultData` host/guest 슬롯을 host_id 비의존(`host_id ?? user_id 정렬`)으로 수정 + `IResultMatch.hostId` nullable 전환**(회귀 fix). 마이그레이션 2개(`20260603_matchmaking_queue.sql` + `20260603_match_participants_unique.sql`). brainstorming→spec→plan→agent-team-workflow(opus)→Code Review(opus)→PR #24 머지. **누적 fix**: C-1(self_insert write primitive 차단) + W-1(더블클릭 ON CONFLICT) + N-2 + **RPC EXECUTE 권한 anon/authenticated 회수(`197f686`, Supabase default privileges 노출 차단)** + join 중복 가드(`hasJoinedRef`+`isMountedRef`) + `match_participants(match_id,user_id)` UNIQUE + 동시진입 데드락 한계 주석(B-8). DB 검증: `matchmaking_queue` 테이블·RLS·publication·RPC(권한 postgres/service_role)·UNIQUE 전부 MCP 확인. **후속(B-7 `matched` 큐 row 누적 / B-8 동시진입 데드락)** — 동접 극소 전제라 MVP 무해. **실매치 런타임 검증만 미완.**
-- **이전 일자**: 2026-05-31 (Step 4.5 MMR — **PR #21 dev 머지 완료 `08753ba`**. 마이그레이션은 DB 적용 완료)
-- **Step 4.5 완료 (2026-05-31, PR #21 dev 머지 `08753ba`)** — 매치 종료 시 Elo(K=32) MMR 산출 + tier 재산정 + 결과 페이지 변동 정적 표시. 외부 세션 PR 리뷰 #1(부분 실패 시 화면 모순 — profiles→mmr_change 순서 교체) fix 포함. **DB 사전 검증 결과 `profiles.mmr`/`tier`/`wins`/`losses`/`streak` + `match_participants.mmr_change` 컬럼이 이미 전부 존재**(문서의 "신설" 가정과 불일치 → "빈 컬럼 채우기"로 재정의). 신규 순수 유틸 `calculateMmr`/`getTierByMmr`(`app/features/match/utils/`), `submit/route.ts` finalize 블록에 service-role 단독 MMR 갱신(best-effort — 실패해도 winner 보존) + `mmrChange` 브로드캐스트 payload, 결과 페이지(`getResultData`/result types/`ParticipantCodeCard`) 변동 표시. **보안**: `profiles.self_update` 가 컬럼 제한 없이 평점 위조 가능하던 write primitive 를 `prevent_protected_profiles_update` 트리거로 차단(마이그레이션 `20260531_protect_profiles_rating_columns.sql`, DB 적용 완료). 스코프: MMR+tier 만(wins/losses/streak 는 기존 `get_profile_stats` RPC 유지로 중복 회피). 기존 finished 3건은 소급 없음(mmr_change NULL → 변동 섹션 숨김). Code Review(opus) Critical 0 / W-1(row 0 가드 누락) fix 반영, W-2(read-modify-write 비원자성) 인지 항목.
-- **이전 일자**: 2026-05-31 (Step 4-B AI 리뷰, PR #20 — **dev 머지 완료 `3e440e5`**)
-- **PR**: A PR #18 `feature/step3-profile` (4커밋 push 완료, dev 머지 대기) — **Step 3 프로필 페이지 도입. Step 3 100% 종료.** URL: https://github.com/als982001/code-clash/pull/18
-- **커밋 4건**:
-  - `1190a2f` — feat(profile): Step 3 프로필 페이지 + 닉네임 편집 + fallback 모달 (13 files, +1045/-1)
-  - `d19f020` — docs: SCREEN_STATUS / PROJECT_STATUS 동기화 (2 files, +105/-78)
-  - `1da4089` — 테스트용 코드 원복 (사용자 직접, ProfileView.tsx 1줄)
-  - `ef164cb` — fix(profile): PR #18 P3 review fix (2 files, +7/-2)
-- **변경 요약**:
-  - **신규 라우트 2개** — `/profile/[userId]` (서버 컴포넌트 + ProfileView/ProfileEditDialog/NicknameFallbackDialog) + `/profile/me` (본인 redirect)
-  - **신규 API 1개** — `PATCH /api/profile/me` (nickname/bio whitelist + UNIQUE 23505 → 409 정밀 매핑 + RLS silent fail 가드)
-  - **신규 RPC 1개** — `get_profile_stats(uuid)` SECURITY DEFINER STABLE. matches/match_participants RLS 우회로 타인 프로필 전적 집계 가능
-  - **신규 util 4개** — `getProfileStats` / `isAutoGeneratedNickname` (`/^(Player|Anon)_[0-9a-f]{8}$/`) / `formatJoinDate` (React 19 idempotency 가드) / `validateNickname`
-  - **수정** `protectedPaths.ts` — `PROTECTED_PREFIXES` 의 `/profile/me` → `/profile` 일반화 (비로그인 차단을 `/profile/[userId]`까지 확장)
-  - **마이그레이션** `20260517_profile_stats_rpc.sql` — 사용자가 Studio에서 직접 적용 + 검증 SQL `(0,0,0,0)` 정상 반환 확인
-- **Code Review fix 반영**:
-  - W-1: 23505 매핑을 `details.includes("nickname") || message.includes("nickname")`로 정밀화 (다른 UNIQUE 컬럼 추가 시 잘못된 메시지 노출 방지)
-  - W-2: ProfileEditDialog 닉네임 input `maxLength` 32 → 20 (validateNickname 상한과 일치)
-- **Lint fix**:
-  - NicknameFallbackDialog `useState(false) + useEffect(setOpen(true))` → `useState` lazy initializer로 통합 (`react-hooks/set-state-in-effect` 위반 해소, 렌더 2회 → 1회 단축)
-- **P3 review fix (커밋 `ef164cb`, 다른 세션에서 발견)**:
-  - P3-1: `get_profile_stats` RPC 의 `draws` FILTER 에서 중복 `status = 'finished'` 조건 제거. JOIN ON 에서 이미 거름 → FILTER 내부 같은 조건은 redundant. 동작 영향 없음, 가독성↑. 마이그레이션 파일 정정만 했고 DB 함수 본문은 사용자가 Studio 에서 SQL 재실행 시 갱신 (CREATE OR REPLACE, 미실행해도 동작 동일)
-  - P3-2: ProfileEditDialog 성공 분기에 `isMountedRef` 가드 1줄 추가. CODE_CONVENTIONS "async + setState 가드 패턴" 일관 적용 (실패 분기 2회 vs 성공 분기 0회 불일치 해소)
-- **회귀 면적**:
-  - middleware 보호 prefix `/profile/me` → `/profile` 확장 — `isProtectedPath`가 `pathname === prefix || pathname.startsWith(prefix + "/")` 매칭이라 `/profilable-thing` 우연 매칭 위험 없음
-  - RLS 정책 변경 없음 (RPC만 추가)
-  - 다른 라우트/컴포넌트/API 영향 없음
-- **§C Realtime 채널 구조 분석 (2026-05-30 완료)** — `docs/notes/realtime-channels.md` 작성. 채널 분리 / cleanup / polling fallback / 명명 컨벤션 4축 점검. 결론: 구조 유지가 합당, 개선 후보 2건(❶ `useMatchRealtime` cleanup에 `setIsSubscribed(false)` reset 누락 / ❷ polling이 Realtime 살아있을 때 skip 분기 부재)은 별도 PR 후보로 분리
-- **Step 4-A 완료 (2026-05-30, PR #19 dev 머지)** — `/result/[matchId]` 결과 페이지 신설. server component + status pre-check + Promise.all + Shiki SSR + RLS 자연 게이트. /play finished 배너에 "결과 자세히 보기" Link 추가. MMR은 Phase 4.5로 분리.
-- **Step 4-B 완료 (2026-05-31, PR #20 dev 머지 완료 `3e440e5`)** — `/result/[matchId]`에 AI 코드 리뷰 신설. 외부 2차 리뷰 F1(LLM 출력 런타임 검증)·F3(maybeSingle) fix 포함. 본인 `ai_reviews` SSR 조회(캐싱 히트 즉시 표시) → 없으면 `AiReviewSection`(client)이 `POST /api/match/[matchId]/review` lazy 호출 → Gemini JSON 구조화 출력(복잡도/강점/개선/상대비교). `ai_reviews` write 는 service-role 단독(write primitive 방지), `submission_id` UNIQUE(기존재) + ON CONFLICT 멱등. `@google/genai@^2.7.0` 추가, `AiReviewPlaceholder` → `AiReviewSection` 대체. **DB 스키마 변경 없음.** Code Review(opus) Critical 0 / W-1·W-2·W-3·N-3 fix 반영, W-4(me·opponent DRY) 보류.
-- **다음 PR 후보 (Step 4.5 종료 이후)**:
-  1. **MMR 후속** — Step 4.5(PR #21) dev 머지 완료 ✅. #2 read-modify-write 비원자성(동시매치 시 원자 증분 RPC) / #3 schema_migrations 일괄 reconcile / N-1 `profiles.tier` DB CHECK / score 밸런스(0통과 ~500점)
-  2. **§D-2 후속 정리** — `match_participants.self_insert`/`self_delete` `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화
-  3. **AI 리뷰 후속** — W-4(me·opponent DRY 헬퍼) / Next Step 학습 추천(약점 태그) / 프롬프트 캐싱·토큰 최적화 / `@google/genai` npm 취약점 점검
-  4. **코드 리뷰 nit 후속** — placeholder Card 시멘틱 / "다음 PR" 카피 / LoginPage design token 통일 / MMR N-1~3
-  5. **invite 토큰 lazy cleanup** — 만료된 waiting 매치 자동 정리
-  6. **§C 개선 후보 ❶ ❷** — Realtime 노트에서 발견
-  7. **리더보드 (Phase 5)** — MMR 도입 완료로 진입 가능해짐
+- **2026-06-06** — 문서 최적화 세션(이 문서의 마지막 갱신 이력 압축). 화면 변경 없음.
+- **직전 화면 변경**:
+  - **PR #26** 글로벌 네비 메뉴바(`GlobalNav` 홈/대전하기/리더보드, `usePathname` active 강조)를 `(main)/layout.tsx` + `HomeClient` 헤더 양쪽 마운트. 홈 "매치 찾기" 카드 제거(자동 매칭과 중복) → 카드 2개.
+  - **PR #25** ProblemPanel 섹션 카드 — `/play` 좌측 문제 패널을 구조화 컬럼(description/input_format/output_format/examples) 기반 `ProblemMetaHeader`/`ProblemSection`/`ProblemExampleSection`로 재구성.
+- MVP 핵심 화면 루프(`/` → 매칭 → `/play` → `/result` → `/leaderboard` → `/profile`)는 전부 ✅.
+- 세션별 상세 작업 이력 SoT는 `docs/NEXT_SESSION.md` + git 히스토리.
