@@ -7,23 +7,11 @@
 
 ## 한 줄 진단
 
-**[2026-06-06 최신³] 글로벌 네비 메뉴바 추가 + 홈 "매치 찾기" 카드 제거 (PR #26 `94020d9` dev 머지 완료, UI 전용·DB 변경 0).** ① 신규 공용 컴포넌트 `app/shared/components/GlobalNav.tsx`(홈/대전하기/리더보드 메뉴바, `usePathname` 정확 일치 active=`secondary`+`aria-current`, base-ui `<Link className={buttonVariants(...)}>` 패턴, 모바일 `min-w-0 overflow-x-auto`, 비로그인 무관 항상 노출)를 `(main)/layout.tsx`(기존 "리더보드" 단일 링크 대체)와 `HomeClient` 헤더(`justify-end`→`justify-between`) 양쪽에 마운트 → 홈과 (main) 페이지가 동일 메뉴바를 가짐. `/play`는 `(main)`·홈 어느 헤더에도 안 속해 미적용 유지(Monaco 풀스크린 보존). ② 홈 "매치 찾기" 카드 제거 — 대시보드 "자동 매칭"과 동일 `MatchmakingDialog` 트리거라 기능 중복. 카드 3개→2개(`md:grid-cols-3`→`md:grid-cols-2`) + `MatchmakingDialog`/`matchmakingOpen` state/`useState`·`MatchmakingDialog` import/`SignedInView` `userId` prop dead code 일괄 정리(대시보드 자동 매칭은 유지). agent-team-workflow(opus) Analyzer→Writer→Reviewer, Code Review Critical/Warning 0. browse로 데스크탑/375px/320px 헤더 렌더·overflow 없음·콘솔 에러 0 확인. 변경 파일: 신규 1(`GlobalNav.tsx`) + 수정 2(`(main)/layout.tsx`, `HomeClient.tsx`).
+**[2026-06-06] MVP 핵심 루프(매칭 → 대전 → 결과 → AI 리뷰 → MMR → 리더보드) 전부 완성. dev 머지 완료, main 머지 준비 단계.** 친구 초대 매칭 + 자동 매칭 큐(MVP A-2, PR #24) 두 진입로 → 실시간 1:1 대전(Monaco + Judge0 채점, 15분 타이머, HUD/사운드/토스트) → 결과 화면(Shiki SSR 코드 비교) + Gemini AI 코드 리뷰(캐싱) → Elo(K=32) MMR/티어 갱신 → 리더보드(MVP A-1, PR #23) 순위. 인증은 Supabase OAuth(Google/GitHub) + middleware SSR 가드 + 전 API `requireUser` 401. 글로벌 네비 메뉴바(홈/대전하기/리더보드, PR #26)가 홈·(main) 헤더에 마운트. 문제 패널은 구조화 컬럼(`description`/`input_format`/`output_format`/`examples`) 기반 섹션 카드(PR #25).
 
-**[2026-06-06 최신²] `problems.description` 구조화 컬럼 분리 + ProblemPanel 섹션 카드 디자인 (PR #25 `6249e74` dev 머지 완료).** 문제 패널의 문제설명/입력형식/출력형식/예시가 단일 마크다운(`description`)이라 시각 구분이 약하던 문제를, **DB 레벨에서 구조 분리**로 근본 해결. `problems`에 `input_format`/`output_format` TEXT NOT NULL + `examples` JSONB NOT NULL(`[{input,output,explanation?}]` 배열, 다중 예시 지원) 추가, `description`은 "문제 설명" 본문만 의미 변경. 기존 9건은 id 유지 UPDATE 백필(matches/test_cases FK 무영향, 원본 백업 테이블 보존), #8 계단오르기·#9 LIS의 `### 설명`은 `examples[].explanation`으로 보존. 렌더는 마크다운 파싱(임시 구현) 폐기 → 컬럼 직접 사용. 신규 컴포넌트 `ProblemMetaHeader`/`ProblemSection`/`ProblemExampleSection`(섹션 카드, 예시 입출력 `<pre>` 카드 + explanation ReactMarkdown), `parseProblemDescription` 유틸 제거. **AI 리뷰 회귀 방지**: `review/route.ts`가 분리된 4필드를 재조합해 Gemini에 전달(맥락 손실 차단). 마이그레이션 `20260606_problems_structured_columns.sql`(백필+검증 DO 블록 자동 롤백+NOT NULL, 백업 테이블 RLS/REVOKE) + 신규 시드 `20260606_seed_problems_structured.sql`. **DB 적용 완료·MCP 검증**(9건 분리 정상, NOT NULL 적용, explanation 2건). agent-team-workflow(opus) Analyzer→Writer→Reviewer. Code Review Critical 0 / W-1(백업테이블 노출 차단) W-2(검증 자동실패) fix 반영. 화면 확인 완료. **schema_migrations 미기록**(SQL Editor 직접 실행, B-4 reconcile 대상).
+**보안 (write primitive 3종 차단 완료)**: score/winner/mmr 컬럼 모두 — 인가 사용자 UPDATE default deny + service-role 단독 갱신 + BEFORE UPDATE 보호 컬럼 트리거(안전망)로 PostgREST PATCH 위조 차단. invite/matchmaking RPC는 SECURITY DEFINER + 적절한 EXECUTE 권한 분리(matchmaking은 service_role 단독, anon/authenticated REVOKE). 상세는 아래 "구현 완료 영역" + "DB 상태".
 
-**[2026-06-06] MVP 범위 재정의 — A-3 프로필 역량 분석을 Post-MVP로 이동. MVP는 0·1·2(UX 개선/리더보드/자동 매칭 큐)까지로 핵심 완료.** 역량 분석(태그별 강점/약점 방사형 차트)은 매치 데이터가 충분히 쌓인 뒤에야 통계적 의미가 생기는 후행 기능 — 실측 DB(finished 매치 7건 / submissions 14건 / 유저 5명 / 태그 6종: Array·String·DP·Hash·Math·Stack)에서 태그당 표본이 1~2건이라 대부분 "데이터 부족" 폴백만 노출되어 MVP 실질 가치가 낮음 → 데이터 축적 후 착수가 합리적. **MVP 핵심 루프(매칭 → 대전 → 결과 → AI 리뷰 → MMR → 리더보드)는 전부 완성.** 코드 변경 없는 문서 정리 세션(BLUEPRINT/README/NEXT_SESSION/PROJECT_STATUS/SCREEN_STATUS 5종 동기화, dev 직접 커밋). **다음 권장: ① A-2 실매치 런타임 검증 → ② Post-MVP 최우선 리더보드 전적 표시(`get_leaderboard` 집계 RPC, 승/패/승률).** Post-MVP 우선순위: ① 리더보드 전적 → ② 프로필 역량 분석(A-3, 데이터 축적 후) → ③ AI 대전 봇(A-4).
-
-**[2026-06-03] MVP 2번 자동 매칭 큐 (A-2) dev 머지 완료 (`19d0f6b`, PR #24) + 마이그레이션 2개 DB 적용·MCP 검증 완료. MVP 0·1·2 완료 → 마지막 3번(A-3)만 남으면 MVP 종료.** `invite_token` 없이 두 유저를 MMR 기반 자동 매칭. 신규 `matchmaking_queue` 테이블(RLS: self_read/self_delete만, **INSERT/UPDATE default deny** → status/match_id 는 service-role RPC 단독, write primitive 방지) + service-role 원자 매칭 RPC `find_or_enqueue_match`(`FOR UPDATE SKIP LOCKED`로 동시 진입 race 차단, 대기 상대 MMR 가장 가까운 1명, 없으면 ON CONFLICT 멱등 등록) + `POST /api/match/matchmaking/{join,leave}` + `MatchmakingDialog` 공용 모달(홈 "매치 찾기" + 대시보드 "자동 매칭" placeholder 2곳 활성화) + `useMatchmakingQueue` 훅(Realtime postgres_changes + 5초 폴링). 자동 매칭 매치는 `host_id=NULL`이라 **`getResultData`의 host/guest 슬롯을 host_id 비의존(`host_id ?? user_id 정렬`)으로 수정 + `IResultMatch.hostId` nullable 전환**(회귀 fix — 결과 컴포넌트는 슬롯+isMe swap만 써서 영향 없음, 승패는 winner_id 기반). 마이그레이션 `20260603_matchmaking_queue.sql`(신규 테이블 1개). brainstorming→spec→plan→agent-team-workflow(opus)→Code Review(opus). **Code Review C-1**(self_insert 가 status/match_id 위조 INSERT 허용하는 write primitive → self_insert 정책 미생성으로 default deny) + **W-1**(DELETE↔INSERT 사이 더블클릭 23505 → ON CONFLICT upsert 멱등화) + N-2 fix 반영. **보안/리뷰 후속 누적 fix**: ① RPC EXECUTE 권한 `anon`/`authenticated` 회수(`197f686` — Supabase 가 public 스키마 함수에 default 부여하던 노출 차단, DB 검증 완료) ② join 중복 가드(`hasJoinedRef` + `isMountedRef` 승격 — StrictMode split-state 방지) ③ `match_participants(match_id, user_id)` UNIQUE 신규 마이그레이션 ④ 동시 진입 데드락 한계 주석. **후속(B-7 `matched` 큐 row 누적 / B-8 동시 진입 데드락)** — 동접 극소 전제라 MVP 무해, B-5 와 묶음. **(2026-06-06 갱신: 당시 "다음 = MVP 3번 A-3" 였으나 A-3 를 Post-MVP 로 이동 — 위 최신 진단 참고.)**
-
-**[2026-06-03] MVP 0·1번 완료** — ① **PR #22 (`bf15a08`)**: UserMenu에 프로필(`/profile/me`) 진입 버튼(로그아웃 중 가드) + 홈 "대시보드"→"대전하기" 카피 + 프로필 화면 MMR/tier 배지(`profiles.mmr` select + `getTierByMmr` 파생). ② **PR #23 (`f6910fc`) — 리더보드 MVP A-1**: `/leaderboard` server component. `getLeaderboard`(profiles MMR DESC→created*at ASC, 익명 `Anon*`제외, RLS`TO authenticated USING true`직접 조회 — RPC 불필요) +`rankEntries`(동점 같은 순위 1-2-2-2-5, 한 번 순회) + `LeaderboardView`(순위 리스트, 행 Link로 프로필 이동, 본인 하이라이트, tier/mmr 배지). 진입 동선: 글로벌 헤더(`(main)/layout.tsx`) "리더보드" 링크 + 홈 카드. `/leaderboard` 보호 prefix 추가. **DB 스키마 변경 0**. 전적(승/패)은 **Post-MVP 최우선**(`get_leaderboard` 집계 RPC)으로 분리(`profiles.wins/losses`는 미신뢰 컬럼). 신규 feature `app/features/leaderboard/`(types + getLeaderboard + rankEntries, server-only). 리뷰 fix(익명 유저 제외)는 별도 커밋(`441b98e`). **다음: MVP 2번 자동 매칭 큐(A-2) — 착수 전 B-2(MMR read-modify-write 비원자성) 선처리 검토 + DB 상태 검증.**
-
-**Step 3 100% 종료 (PR #18 dev 머지 완료, `386a406`). §C Realtime 채널 구조 분석 노트 작성 완료 (`docs/notes/realtime-channels.md`, 2026-05-30). Step 4-A `/result/[matchId]` 결과 페이지 PR (브랜치 `feature/step4a-result-page`) 구현 완료 — server component + Promise.all + Shiki SSR + RLS 자연 게이트, /play finished 배너에 "결과 자세히 보기" Link 추가. AI 리뷰는 Step 4-B, MMR은 Phase 4.5로 분리**. 프로필 페이지(`/profile/[userId]` + `/profile/me` + ProfileEditDialog + NicknameFallbackDialog) + PATCH `/api/profile/me` + `get_profile_stats(uuid)` SECURITY DEFINER STABLE RPC(matches/match_participants RLS 우회로 타인 전적 집계) + middleware `/profile` prefix 일반화(비로그인 전체 차단). Code Review fix 2건 + lint fix 1건(`react-hooks/set-state-in-effect` → `useState` lazy initializer) + 다른 세션 PR 리뷰의 P3 review fix 2건(SQL redundant filter 제거 + 성공 분기 isMountedRef 가드) 동일 PR에 반영.
-
-**Step 4-B 완료 (PR #20 dev 머지 완료, `3e440e5` squash)**: `/result/[matchId]`에 AI 코드 리뷰 신설. 본인 `ai_reviews` SSR 조회(캐싱 히트 즉시 표시) → 없으면 `AiReviewSection`(client)이 `POST /api/match/[matchId]/review` lazy 호출 → Gemini JSON 구조화 출력(복잡도/강점/개선/상대비교 — 본인 코드 리뷰 + 상대 코드 비교 컨텍스트). `ai_reviews` write 정책 부재(default deny) 유지 → INSERT는 service-role 단독(write primitive 방지, score/winner fix와 동일 패턴). `submission_id` UNIQUE(`ai_reviews_submission_id_key`) 기존재 + `ON CONFLICT DO NOTHING` + 저장값 재조회로 멱등. `@google/genai@^2.7.0` 추가, `AiReviewPlaceholder` → `AiReviewSection` 대체. **DB 스키마 변경 없음.** Code Review(opus) Critical 0 / W-1·W-2·W-3·N-3 fix 반영, W-4(me·opponent DRY) 별도 보류.
-
-**Step 4.5 완료 (PR #21 dev 머지 완료 `08753ba`, 마이그레이션 DB 적용 완료)**: 매치 종료 시 Elo(K=32) MMR 산출 + tier 재산정 + 결과 페이지 변동 정적 표시. **DB 사전 검증으로 `profiles.mmr`(default 1000)/`tier`(default Bronze)/`wins`/`losses`/`streak` + `match_participants.mmr_change` 컬럼이 이미 전부 존재함을 확인** → 작업을 "컬럼 신설"이 아닌 "빈 컬럼 채우기"로 재정의(CLAUDE.md DB 검증 규칙이 정확히 짚은 케이스). 신규 순수 유틸 `calculateMmr`/`getTierByMmr`(`app/features/match/utils/`), `submit/route.ts` finalize 블록에 service-role 단독 MMR 갱신(best-effort — 실패해도 winner 보존, `.select("id")` row 0 가드 포함) + `mmrChange` 브로드캐스트 payload, 결과 페이지(`getResultData`/result types/`ParticipantCodeCard`) 변동 표시(`+24 · Silver 1224`, mmr_change NULL이면 숨김). **보안**: `profiles.self_update` 가 컬럼 제한 없이 mmr/tier 위조 가능하던 write primitive 를 `prevent_protected_profiles_update` BEFORE UPDATE 트리거로 차단(`20260531_protect_profiles_rating_columns.sql`, DB 적용 완료. self_update 정책은 유지하여 nickname/bio 편집 보존, 트리거가 평점 컬럼만 OLD 고정, `auth.role()='service_role'` 우회). 스코프: MMR+tier 만(wins/losses/streak 는 기존 `get_profile_stats` RPC 유지로 이중 소스 회피). 기존 finished 3건 소급 없음. Code Review(opus) Critical 0 / W-1(row 0 가드 누락) fix 반영, W-2(read-modify-write 비원자성, 1:1 구조상 무해) 인지.
-
-대전 루프(코드 입력 → 채점 → 결과)는 코드 레벨에서 완성. **실데이터 시드(9 problems / 43 test_cases) 및 `problems`/`test_cases`/`ai_reviews` RLS 정책 3종 정비 완료** (PR #8 dev 머지 완료). `submit/route.ts`의 히든 케이스 조회는 service-role 클라이언트로 분리되어 anti-cheat 보장. 인증은 PR #6/#7-A로 부트스트랩 + PR #7-B(#10)에서 `/login`/`/auth/callback` 구현 + PR #11에서 익명 게스트 플로우 제거 + **PR #7-C(#12) dev 머지 완료** — middleware 라우트 가드 + AuthListener 전역 구독 + UserMenu 드롭다운 + 홈 화면 재작성 + PR #11 보안 후속 3건. **PR #7-D(#13) Step 3 매칭 dev 머지 완료**: 친구 초대 매칭 흐름(POST /api/match/invite + /dashboard + InviteCard) + /invite/[token] 비인증 진입 + useMatchStatus 훅(matches 실시간 동기화) + HostWaitingView/WaitingForGameStart + /play 5단계 분기 통합. **PR #14 dev 머지 완료(`8f7d600`)**: matches/match_participants/profiles RLS 좁힘(TO authenticated, anon 차단) + `get_invite_match_by_token` SECURITY DEFINER RPC 신설(invite_token 컬럼 미노출) + `/api/match/[matchId]/join`에 invite token 검증 + `admin.ts` service-role 클라이언트 신설(`service.ts`와 중복 — §D-2-a 후속) + useMatchRealtime cascading render fix + UserMenu base-ui Group wrapping fix + console.log 3줄 정리 + 화면 단위 코드 복기 주석 5곳. **PR #16 (브랜치 `feature/d2-followup-cleanup`, dev 머지 대기)**: §D-2 후속 정리 묶음 — `admin.ts` 제거 후 `createServiceClient()` 재사용(§D-2-a) + `matches.participant_update` WITH CHECK 추가(status/winner_id 잠금) + `prevent_protected_matches_update` BEFORE UPDATE 트리거(host_id/invite_token/invite_expires_at/problem_id/start_time/created_at/id 잠금, service_role은 `auth.role()='service_role'`로 우회)(§D-2-b) + `/api/match/route.ts` dead code 제거(§D-2-c) + **`match_participants.self_update` 정책 신설 + 보호 컬럼 트리거**(§D-2-d — 회귀 fix: UPDATE 정책 부재로 `submit/route.ts:354`의 score 갱신이 silently 차단되어 score 26건 전부 NULL이던 상태 해소) + `submit/route.ts:354`에 `.select("id")` 가드 추가(silent fail 향후 감지). 외부 리뷰에서 발견된 match_participants score write primitive(인가 사용자가 자기 score 를 PostgREST PATCH 로 임의 값 위조 가능)를 같은 PR 후속 커밋으로 fix — `self_update` 정책 DROP + submit 라우트의 score 갱신을 service-role 로 전환 (`20260516_fix_match_participants_score_write_primitive.sql`). **외부 리뷰 2차** 에서 score primitive 와 완벽 대칭인 matches winner write primitive(인가 사용자가 PostgREST PATCH 로 자기를 winner 로 즉시 선언 가능)를 같은 PR 후속 커밋으로 fix — `participant_update` 정책 DROP + submit 라우트의 matches finalize UPDATE 를 service-role 로 전환 (`20260516_fix_matches_winner_write_primitive.sql`). 다음은 Step 3 프로필 PR 또는 §C Realtime 채널 구조 분석.
+**다음**: Post-MVP 최우선 = 리더보드 전적 표시(`get_leaderboard` 집계 RPC, 승/패/승률). A-3 역량 분석(데이터 축적 후)·A-4 AI 봇·기술 부채 B-1~8은 `docs/NEXT_SESSION.md`를 SoT로 관리. (A-2 실매치 런타임 수동 검증 1회 권장 — 코드/DB는 머지 완료, 런타임 미검증.)
 
 ---
 
@@ -140,175 +128,84 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 
 ### 핵심 매치 루프 (Step 1~2)
 
-- 매치 생성 → 참가자 등록 → 매치 시작 → 코드 작성 → 실시간 진행 상태 → 최종 채점 → 승자 판정 → 결과 표시
-- Race condition 방어: `submit/route.ts`에서 `eq("status", "ongoing")` 가드로 동시 finish 방지
-- 멱등성: 동일 유저의 중복 제출 시 기존 submission 반환
-- 점수 산출: `(passed/total × 1000) + ((Tmax-Tused)/Tmax × 500)` (서버 단독, anti-cheat)
+- 매치 생성 → 참가자 등록 → 시작 → 코드 작성 → 실시간 진행 → 최종 채점 → 승자 판정 → 결과
+- Race 방어(`submit/route.ts` `eq("status","ongoing")`) + 중복 제출 멱등 + 서버 단독 점수 산출(anti-cheat): `(passed/total × 1000) + ((Tmax-Tused)/Tmax × 500)`
 
-### 인증 인프라 (Step 3 — PR #6 + #7-A + #7-B + #7-C)
+### 인증 인프라 (Step 3)
 
-- OAuth(Google/GitHub) 로그인 (`/login`) + `/auth/callback`에서 `exchangeCodeForSession` + 닉네임/아바타 동기화
-- `auth.users` AFTER INSERT 트리거 → `public.profiles` 자동 생성 (best-effort)
-- `useAuth` 단일 진입점 + 트리거 실패 대비 fallback upsert + `AUTH_QUERY_KEY` export (PR #7-C)
-- `profiles` RLS 3종 (`public_read` + `self_update` + `self_insert`)
-- 게스트(익명) 로그인 플로우 전면 제거 (PR #11)
-- middleware 라우트 가드 — 보호 prefix(`/play`, `/result`, `/dashboard`, `/profile/me`) SSR redirect + `/api/*`는 쿠키 갱신만 (PR #7-C)
-- AuthListener 전역 단일 구독 — `onAuthStateChange`에서 SIGNED_IN/SIGNED_OUT/USER_UPDATED만 `AUTH_QUERY_KEY` invalidate (PR #7-C)
-- UserMenu 드롭다운 — 로그인/비로그인 분기 + Avatar + 로그아웃 (보호 prefix면 `/`로 push, 아니면 refresh) (PR #7-C)
-- HomeClient — 홈 페이지 client view (UserMenu 헤더 + 분기 + placeholder 카드) + `app/page.tsx`는 서버 wrapper로 축소 (PR #7-C)
-- 보안 헬퍼 3종 — `sanitizeNext` (open redirect 차단) / `requireUser` (API 라우트 401 가드 통일) / `protectedPaths` (middleware + client 공유 prefix 매칭) (PR #7-C)
+- OAuth(Google/GitHub) `/login` + `/auth/callback` `exchangeCodeForSession` + 닉네임/아바타 동기화
+- `auth.users` AFTER INSERT 트리거 → `profiles` 자동 생성, `useAuth` 단일 진입점 + fallback upsert
+- middleware 보호 prefix SSR 가드 + AuthListener 전역 단일 구독(SIGNED_IN/OUT/USER_UPDATED만 invalidate) + UserMenu 드롭다운. 익명 게스트 플로우 제거(PR #11)
+- 보안 헬퍼 3종: `sanitizeNext`(open redirect 차단) / `requireUser`(API 401 통일) / `protectedPaths`(prefix 매칭)
 
-### 실시간 (Supabase Realtime broadcast)
+### 실시간 (Supabase Realtime)
 
-- 채널: `match:{matchId}`
-- 이벤트: `PLAYER_READY`, `PROGRESS_UPDATE`, `OPPONENT_SUBMITTED`, `MATCH_FINISHED`
-- 호출처: `useMatchRealtime` hook + `submit/route.ts`
+- broadcast 채널 `match:{matchId}` — `PLAYER_READY`/`PROGRESS_UPDATE`/`OPPONENT_SUBMITTED`/`MATCH_FINISHED` (`useMatchRealtime` + submit 라우트)
+- postgres_changes 채널: `match-status:{matchId}`(matches) / `matchmaking-queue:{userId}`(큐)
 
 ### UX 보강 (Step 2)
 
-- 사운드 토글 (Zustand persist) — `useSoundStore` + `SoundToggle`
-- 매치 타이머 (`useMatchTimer`) — 15분 카운트다운
-- 매치 사운드 (`useMatchSounds`) — 효과음 재생
+- 사운드 토글(Zustand persist) + 15분 매치 타이머(`useMatchTimer`) + 효과음(`useMatchSounds`)
 
 ### Step 3 매칭 (PR #7-D)
 
-- 친구 초대 매칭 흐름 — 호스트가 `/dashboard`에서 invite URL 발급 → 게스트가 `/invite/[token]` 접속 → 입장 → `/play/[matchId]` 자동 전환
-- `POST /api/match/invite` — Node.js runtime, `crypto.randomBytes(16).toString("base64url")` 22자 토큰, 충돌 재시도 3회 (PostgrestError 23505), inviteUrl 3-tier fallback (envOrigin → headerOrigin → requestUrlOrigin)
-- `/dashboard` + `InviteCard` — Dialog 안에 inviteUrl 노출 + 클립보드 복사 (1.5초 시각 피드백) + "방으로 입장" CTA
-- `/invite/[token]` 비인증 허용 서버 컴포넌트 — 5분기 검증 (not_found / already_started / already_finished / expired / full). status를 만료보다 먼저 검사
-- `JoinInvite` 클라이언트 — 호스트 본인 자기 redirect / 비로그인 시 `/login?next=...` CTA / 게스트 입장 버튼 (`/api/match/[matchId]/join` 호출)
-- `useMatchStatus` 훅 — 초기 fetch + Realtime postgres_changes UPDATE filter + 30초 polling fallback (3개 useEffect 자체 isMounted 가드, 채널명 `match-status:${matchId}`로 broadcast 분리)
-- `HostWaitingView` — URL 복사 + 만료 분기 (isInviteExpired 헬퍼 + useMemo) + Realtime 끊김 안내 (만료 분기와 상호배타)
-- `WaitingForGameStart` — 비호스트 waiting → ongoing 전환 직전 race window 스피너
-- `/play/[matchId]` 통합 — 5단계 분기 추가 + 기존 `fetchProblem`의 matches select 중복 제거 → useMatchStatus의 problemId/startTime 위임 + isMountedRef 도입 (handleRun useCallback + handleSubmit 가드)
-- `buttonVariants` server-safe 모듈 분리 (`components/ui/button-variants.ts`) — `"use client"` 파일에서 export된 함수가 server component에서 호출 불가능한 RSC 룰 우회
-- HomeClient의 "대시보드" 카드 활성화 (`<Link href="/dashboard"><Card />`)
+- 친구 초대 흐름: 호스트 `/dashboard` invite URL 발급 → 게스트 `/invite/[token]` 입장 → `/play` 자동 전환
+- `POST /api/match/invite`(nodejs, 22자 토큰, 충돌 재시도, inviteUrl 3-tier origin fallback) + `/invite/[token]` 5분기 검증(not_found/already_started/already_finished/expired/full) + `JoinInvite`
+- `useMatchStatus`(초기 fetch + Realtime + 30초 폴링) + `HostWaitingView`/`WaitingForGameStart` + `/play` 5단계 분기
+- `buttonVariants` server-safe 모듈 분리(`"use client"` export 함수의 RSC 룰 우회)
 
-### Step 3 보안 강화 + 코드 복기 (PR #14)
+### Step 3 보안 강화 (PR #14)
 
-- **마이그레이션 `20260510_tighten_rls_for_invite_security.sql`** — `matches.public_read` → `matches_self_or_participant_read (TO authenticated, host_id = auth.uid() OR participant)`, `match_participants.match_read` → `match_participants_co_participant_read (TO authenticated, 자기 row OR 같은 매치 참가자)`, `profiles.public_read` → `profiles_authenticated_read (TO authenticated, USING true)`. anon이 invite_token, profiles, 다른 매치 row를 직접 SELECT하지 못하게 차단
-- **`get_invite_match_by_token(p_token text)` RPC 신설** — SECURITY DEFINER STABLE, anon+authenticated EXECUTE. 반환 컬럼에서 `invite_token` 제외(`id`, `status`, `host_id`, `invite_expires_at`, `participant_count`만). `/invite/[token]` 비로그인 페이지가 RLS 좁힘 후에도 토큰 검증 가능
-- **`/api/match/[matchId]/join`에 invite token 검증 추가** — body의 token이 DB의 `invite_token`과 일치할 때만 join 허용. RLS만으로 끝내지 않고 mutation 흐름 자체에 게이트
-- **`admin.ts` 신설** — `app/shared/lib/supabase/admin.ts` service-role 클라이언트 (`/api/match/[matchId]/join` 사용). 기존 `service.ts`와 역할 중복 — §D-2-a 후속 정리 대상
-- **`useMatchRealtime` cascading render fix** — effect body 내 동기 `setIsSubscribed` 호출 제거 → subscribe callback 1곳으로 통일. 부수 이득으로 채널 끊김(CLOSED / CHANNEL_ERROR / TIMED_OUT)도 정확히 반영
-- **`UserMenu` base-ui `MenuGroupRootContext` 누락 fix** — `DropdownMenuLabel`을 `DropdownMenuGroup`으로 래핑. 아바타 클릭 시 드롭다운 미표시 런타임 에러 해결
-- **`useMatchStatus.ts` 검증용 console.log 3줄 제거** (이전 세션 §B)
-- **코드 복기 주석 5곳** — `/auth/callback`, `/api/match/invite`, `/api/match/[matchId]/join`, `useMatchRealtime`, `useMatchStatus`. 시니어→주니어 톤 블록 단위, 동작 변경 없음
+- RLS 좁힘(`20260510_*`): matches/match_participants/profiles 전부 `TO authenticated`로 anon SELECT 차단
+- `get_invite_match_by_token` SECURITY DEFINER RPC — `/invite/[token]` 비인증 검증용, 반환 컬럼에서 `invite_token` 제외
+- `/api/match/[matchId]/join`에 invite token 명시 검증(RLS + mutation 이중 게이트)
 
-### §D-2 후속 정리 + 회귀 fix (PR #16, dev 머지 대기)
+### 보안 — write primitive 3종 차단 (PR #16 + Step 4.5)
 
-- **§D-2-a — `admin.ts` 제거 + `service.ts` 재사용**: PR #14에서 만든 `app/shared/lib/supabase/admin.ts` 삭제. `/api/match/[matchId]/join`이 `createServiceClient()`(싱글턴 + fail-fast E_SERVICE) 재사용. 인터페이스 동일(`{ client }`)이라 호출부는 import 1줄 + try/catch 추가로 끝.
-- **§D-2-b — `matches.participant_update` WITH CHECK + 보호 컬럼 트리거** (`supabase/migrations/20260516_tighten_matches_participant_update.sql`): 기존 `participant_update` 정책에 `WITH CHECK`가 부재해서 참가자가 `winner_id`/`host_id` 등 임의 컬럼 UPDATE 가능했음. WITH CHECK로 `status IN ('ongoing','finished')` + `winner_id`는 같은 매치 참가자만 강제. 추가로 `prevent_protected_matches_update` BEFORE UPDATE 트리거가 `id`/`host_id`/`invite_token`/`invite_expires_at`/`problem_id`/`start_time`/`created_at` 7개 컬럼을 OLD에 고정. service_role은 `auth.role() = 'service_role'`로 우회 (Supabase 공식 JWT 클레임 헬퍼).
-- **§D-2-c — `/api/match/route.ts` dead code 제거**: 호출처 0건 grep cross-check 후 파일 삭제. 친구 초대 흐름이 `/api/match/invite`로 통일된 이후 미사용.
-- **§D-2-d — `match_participants.self_update` 정책 신설 + 보호 컬럼 트리거** (`supabase/migrations/20260516_match_participants_self_update.sql`, **회귀 fix**): DB 검증으로 `match_participants` UPDATE 정책 부재 확인 → RLS deny 상태에서 `submit/route.ts:354`의 `match_participants.update({ score })`가 silently 차단되고 있었음. 결과: `score` 26건 전부 NULL, 매치 winner 판정이 score 비교 없이 동점 분기(submitted_at)로만 결정되는 회귀. `self_update` 정책(`user_id = auth.uid()`) + `prevent_protected_match_participants_update` 트리거로 `score`만 인가 사용자 갱신 허용, 나머지 6개 컬럼(`id`/`match_id`/`user_id`/`created_at`/`mmr_change`/`is_disconnected`) OLD에 고정.
-- **`submit/route.ts:354` silent fail 가드**: `.update({ score })`에 `.select("id")` 추가 + `affected row === 0`이면 500 반환. 향후 RLS/정책 미스매치 회귀가 다시 발생해도 즉시 감지.
-- **score write primitive fix (PR #16 후속 커밋)**: 외부 리뷰 발견. `match_participants.self_update` 정책 DROP 으로 인가 사용자 UPDATE 를 default deny 로 되돌리고, `submit/route.ts:356` 의 score 갱신을 같은 라우트의 `serviceClient` 로 전환. matches 가 winner_id/host_id 등을 WITH CHECK + 트리거로 잠갔던 비대칭 해소. `20260516_fix_match_participants_score_write_primitive.sql` 신규.
-- **winner write primitive fix (PR #16 후속 커밋, 외부 리뷰 2차)**: `matches.participant_update` 정책이 트리거 보호 컬럼에서 status/winner_id/end_time 을 제외하여 인증된 참가자가 PostgREST PATCH 로 자기를 winner 로 직접 선언할 수 있던 결함(score primitive 와 대칭). `participant_update` 정책 DROP 으로 matches 인가 사용자 UPDATE 를 default deny 로 되돌리고, `submit/route.ts:399` 의 matches finalize UPDATE 를 같은 라우트의 `serviceClient` 로 전환. `20260516_fix_matches_winner_write_primitive.sql` 신규.
-- **운영 적용 주의**: Supabase 마이그레이션 2개를 `BEGIN/COMMIT`으로 묶어 Studio SQL Editor에서 한 번에 실행 → `schema_migrations` 수동 INSERT (또는 `supabase db push`) → 코드 배포 순서 엄수. 코드만 먼저 배포되면 모든 submit이 새 가드로 500 반환.
+- **패턴**: 인가 사용자가 PostgREST PATCH로 게임 로직 컬럼을 위조하던 경로 3개를 모두 차단. 공통 처방 = 인가 UPDATE 정책 DROP(default deny) + 서버 라우트는 service-role 단독 갱신 + BEFORE UPDATE 보호 컬럼 트리거(service_role `auth.role()` 우회, 안전망)
+  - **score** (`match_participants`): UPDATE 정책 부재로 submit의 score 갱신이 silently 차단돼 26건 NULL이던 회귀까지 동반 해소. `submit`에 `.select("id")` + row 0 가드 추가
+  - **winner** (`matches`): 참가자가 자기를 winner로 직접 선언 가능하던 결함(score와 대칭) 차단
+  - **mmr/tier** (`profiles`): `self_update`는 유지(nickname/bio 편집)하되 트리거가 평점 컬럼만 OLD 고정
+- `admin.ts` 제거 → `createServiceClient()` 단일화(§D-2-a), `/api/match/route.ts` dead code 제거(§D-2-c)
+- **운영 적용 순서**: 마이그레이션(BEGIN/COMMIT) → `schema_migrations` 수동 INSERT → 코드 배포. 코드 선배포 시 가드로 인해 submit 500
 
 ---
 
-## 부분 구현 / 스텁 영역 🔄 ⏳
+## 미구현 / 스텁 영역 ⏳
 
-| 영역                         | 마커 | 비고                                                                                                                                                                             |
-| ---------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/page.tsx` 홈 화면       | ✅   | 서버 wrapper + HomeClient (UserMenu 헤더 + 분기 + placeholder 카드, PR #7-C)                                                                                                     |
-| `app/(auth)/login/`          | ✅   | PR #7-B 완료 + sanitizeNext 적용 (PR #7-C)                                                                                                                                       |
-| `app/auth/callback/`         | ✅   | PR #7-B 완료 + sanitizeNext 적용 (PR #7-C)                                                                                                                                       |
-| `app/(main)/dashboard/`      | ✅   | 친구 초대 카드 + InviteCard Dialog (PR #7-D)                                                                                                                                     |
-| `app/invite/[token]/`        | ✅   | 비인증 허용 서버 컴포넌트 + JoinInvite (PR #7-D)                                                                                                                                 |
-| `app/(main)/profile/[id]/`   | ✅   | 서버 컴포넌트 + ProfileView + ProfileEditDialog + NicknameFallbackDialog. middleware `/profile` prefix 일반화로 `/profile/me` + `/profile/[userId]` 둘 다 비로그인 차단 (PR #18) |
-| `app/(main)/profile/me/`     | ✅   | server component — auth.getUser() → redirect(/profile/${user.id}) (PR #18)                                                                                                       |
-| `app/api/profile/me/`        | ✅   | PATCH 본인 프로필 갱신 (PR #18)                                                                                                                                                  |
-| `app/(main)/leaderboard/`    | ✅   | MVP A-1 — `profiles` MMR DESC 정렬 순위 화면(전적 제외, server component). 전적은 Post-MVP 최우선(`get_leaderboard` RPC)                                                         |
-| `app/(main)/result/[id]/`    | ✅   | Step 4-A(결과) + Step 4-B(AI 리뷰, PR #20) 완료 — server component + Shiki SSR + AI 리뷰 SSR 조회/lazy 생성 (`AiReviewSection`)                                                  |
-| `app/api/match/[id]/review/` | ✅   | AI 코드 리뷰 생성/조회 API (PR Step 4-B). `app/api/ai/` 디렉토리는 미사용                                                                                                        |
-| `app/features/review/`       | ✅   | types + utils(generateReview / getAiReview) (PR Step 4-B)                                                                                                                        |
-| 라우트 가드 (middleware)     | ✅   | 보호 prefix(`/play`, `/result`, `/dashboard`, `/profile/me`) SSR 가드 + `/api/*` 분기 (PR #7-C)                                                                                  |
-| AuthListener (전역)          | ✅   | `app/shared/components/AuthListener.tsx` — QueryProvider 내부 마운트 (PR #7-C)                                                                                                   |
-| UserMenu                     | ✅   | `app/shared/components/UserMenu.tsx` — HomeClient에서만 마운트 (글로벌 헤더는 다음 PR)                                                                                           |
-| HomeClient                   | ✅   | `app/_components/HomeClient.tsx` — UserMenu + 분기 + placeholder 카드 (PR #7-C)                                                                                                  |
-| (main) 글로벌 헤더           | ⏳   | `(main)/layout.tsx` 미도입. `/play`, `/dashboard`, `/profile`은 헤더 없음 (다음 PR 결정)                                                                                         |
-| Edge Functions               | ⏳   | 0개 (`mcp__supabase__list_edge_functions` 결과 비어있음)                                                                                                                         |
+| 영역           | 마커 | 비고                                                                        |
+| -------------- | ---- | --------------------------------------------------------------------------- |
+| Edge Functions | ⏳   | 0개 (`list_edge_functions` 비어있음) — 서버 로직은 Next API 라우트로 충분   |
+| `app/api/ai/`  | ⏳   | 빈 디렉토리 (미사용 — AI 리뷰는 `match/[matchId]/review`로 구현). 정리 후보 |
+
+> 그 외 화면/API/인증 인프라는 전부 ✅ 완료 — 위 "앱 구조" 트리 + `SCREEN_STATUS.md` 라우트 표 참고.
 
 ---
 
 ## 알려진 결함 / 잠재 이슈 🚨
 
-### 1. ✅ Resolved — `problems` / `test_cases` / `ai_reviews` RLS 정책
+### ✅ 해결됨 (이력 — 상세는 git / 마이그레이션 / 위 "보안" 섹션)
 
-- `20260426_rls_problems_test_cases.sql`로 정책 3종 추가:
-  - `problems.public_read` — `USING (true)`
-  - `test_cases.visible_read` — `USING (is_hidden = false)` (히든은 service role만)
-  - `ai_reviews.self_read` — submission JOIN으로 본인 리뷰만
-- `submit/route.ts`는 `createServiceClient()`로 분기되어 히든 케이스 RLS bypass — anti-cheat 보장
-- `app/api/problems/[problemId]/`는 이미 `.eq("is_hidden", false)` 가드 존재
+- `problems`/`test_cases`/`ai_reviews` RLS 정책 3종(`20260426_*`) + 시드 9문제·43케이스 멱등화
+- 홈 화면(PR #7-C) / `useAuth` retry + `service.ts` 싱글턴 + `test_cases` UNIQUE 제약(PR #9)
+- `admin.ts`↔`service.ts` 중복 제거(§D-2-a) / `matches.participant_update` WITH CHECK(§D-2-b)
+- **score / winner / mmr write primitive 3종** + score silent fail 26건 NULL 회귀 (PR #16 + 후속 + Step 4.5) → "구현 완료 영역 > 보안" 참고
 
-### 2. ✅ Resolved — `problems` / `test_cases` 시드
+### ⚠️ 5. Env — 일관성 깨진 키 이름
 
-- `20260426_seed_problems.sql`로 멱등 INSERT 적용 (problems 9건 / test_cases 43건)
-- 운영 DB에는 이미 동일 데이터 존재 → 마이그레이션은 신규 환경 부트스트랩 + 회귀 방어용
-- problems: `ON CONFLICT (id) DO NOTHING`, test_cases: `WHERE NOT EXISTS` 패턴
+- `GITHUB_CLIENT_SECRETS`(복수형 — 표준 `_SECRET`), 한국어 키(`클라이언트_ID`/`클라이언트_보안_비밀번호`, Google Console 한국어 export), `LEGACY_NEXT_PUBLIC_SUPABASE_*` 잔재 — 정리 후보
 
-### 3. ✅ Resolved — `app/page.tsx` 홈 화면 (PR #7-C)
+### ℹ️ 6. MCP — `list_migrations` 빈 배열
 
-- 서버 wrapper(`app/page.tsx`) + `HomeClient` (UserMenu 헤더 + 로그인/비로그인 분기 + 매치/대시보드 placeholder 카드)
-- 매치 찾기 / 대시보드 카드는 disabled placeholder — Step 3 매칭/프로필 PR에서 활성화 예정
+- SQL Editor 수동 실행으로 `supabase_migrations` 시스템 테이블 미등록. 운영엔 무해, CLI 자동화 도입 시 reconcile 필요(B-4)
 
-### 4. ✅ Resolved — 후속 보강 (PR #9 머지 완료)
+### ℹ️ 7. 코드 리뷰 nit 후속
 
-- `useAuth`에 `retry` 함수 명시 (4xx 즉시 fail / 그 외 1회 재시도) + queryFn에 explicit `throw` 추가 → retry 정책이 실효적으로 동작
-- `app/shared/lib/supabase/service.ts` 모듈 레벨 lazy 싱글턴 + `SupabaseClient` 명시 타입 + `submit/route.ts` ENV fail-fast try/catch + 에러 메시지 차별화 (`E_JUDGE0` / `E_SERVICE`)
-- `20260427_test_cases_unique_constraint.sql`로 `(problem_id, input, is_hidden)` UNIQUE 제약 + `is_hidden NOT NULL` 보강 (DO 블록 + `IF (NOT) EXISTS` 가드로 멱등)
-- (`useAutoAnonymousAuth`는 `feature/remove-guest-flow`에서 파일째 삭제되어 isMounted 가드 항목 자체가 N/A)
+- placeholder Card 시멘틱 / 개발 jargon 카피 / LoginPage `text-zinc-400` → design token 통일 / `app/_components/` 폴더 컨벤션 가이드
 
-### 5. ⚠️ Env — 일관성 깨진 키 이름
+### ℹ️ 11. 후속 정리 후보
 
-- `GITHUB_CLIENT_SECRETS` (복수형 — 표준은 `_SECRET`)
-- 한국어 키: `클라이언트_ID`, `클라이언트_보안_비밀번호` (Google Console 한국어 export 그대로 보임)
-- `LEGACY_NEXT_PUBLIC_SUPABASE_URL` / `LEGACY_..._ANON_KEY` 도 잔재 — 정리 필요 여부 확인
-
-### 6. ℹ️ MCP — `list_migrations` 빈 배열
-
-- 마이그레이션을 SQL Editor 수동 실행으로 적용해서 Supabase의 `supabase_migrations` 시스템 테이블에는 등록 안 됨
-- 운영 환경 보존엔 문제 없으나, 향후 CLI 기반 자동화 도입 시 한 번 reconcile 필요
-
-### 7. ℹ️ 코드 리뷰 nit 후속 (PR #7-C 묶음 C)
-
-- placeholder Card의 시멘틱 정리 (현재 `aria-disabled="true"`만, 인터랙티브 element 아니라 의미 약함). 매칭 PR에서 카드를 실제 `<button>`/`<Link>`로 전환할 때 `role`/keyboard focus 일괄 정리
-- "준비중 — 다음 PR에서 제공됩니다" 카피의 개발 jargon. 알파/베타 사용자 노출 직전에 "곧 제공될 예정" 류로 일괄 변경
-- LoginPage `text-zinc-400` 하드코딩 vs HomeClient `text-muted-foreground` design token. LoginPage도 token으로 통일하면 다크/라이트 호환성 일관됨
-- `app/_components/` 폴더 컨벤션 가이드 추가 (home 전용 vs route별 `_components` 구분)
-
-### 8. ✅ Resolved — `admin.ts` ↔ `service.ts` 중복 (PR #16, §D-2-a)
-
-- `app/shared/lib/supabase/admin.ts` 제거 → `/api/match/[matchId]/join`이 `createServiceClient()`(싱글턴 + fail-fast E_SERVICE) 재사용
-- 인터페이스 동일(`{ client }`)이라 호출부는 import 1줄 + try/catch 추가로 끝
-
-### 9. ✅ Resolved — `matches.participant_update` `WITH CHECK` 누락 (PR #16, §D-2-b)
-
-- `WITH CHECK` 추가: `status IN ('ongoing','finished')` + `winner_id`는 NULL 또는 같은 매치 참가자만
-- `prevent_protected_matches_update` BEFORE UPDATE 트리거: `id`/`host_id`/`invite_token`/`invite_expires_at`/`problem_id`/`start_time`/`created_at` 7개 컬럼 OLD 고정
-- service_role 우회는 `auth.role() = 'service_role'`로 식별 (Supabase 공식 JWT 클레임 헬퍼)
-
-### 10. ✅ Resolved — `match_participants` UPDATE 정책 부재 → score silent fail + 후속 score write primitive (PR #16 + PR #16 후속 커밋, §D-2-d)
-
-- DB 검증으로 확인: `match_participants` 에 UPDATE 정책이 부재했고, `submit/route.ts:354` 의 `match_participants.update({ score })` 가 RLS deny 로 silently 차단되어 `score` 26건 전부 NULL 이던 상태
-- 매치 winner 판정이 score 비교 없이 동점 분기(submitted_at)로만 결정되는 회귀 — 매치 1건 finished 확인됨
-- **1차 fix** (`20260516_match_participants_self_update.sql`, 머지 전 적용 마이그레이션): `self_update` 정책 + 보호 컬럼 트리거 도입. 그러나 트리거 보호 컬럼에서 `score` 를 제외하여 인가 사용자가 PostgREST PATCH 로 자기 score 를 위조 가능한 score write primitive 노출 (외부 리뷰가 HIGH 로 식별)
-- **최종 fix** (`20260516_fix_match_participants_score_write_primitive.sql`, PR #16 후속 커밋): `self_update` 정책 DROP → match_participants 인가 사용자 UPDATE 를 default deny 로 복귀. `submit/route.ts:356` 의 score 갱신은 같은 라우트의 `serviceClient` 로 전환되어 RLS 를 우회. silent fail 가드(`.select("id")` + 0 rows 검사)는 그대로 유지하여 향후 회귀 즉시 감지
-
-### 11. ℹ️ 후속 정리 후보 (PR #16 리뷰 중 발견)
-
-- `match_participants.self_insert` / `self_delete` 정책이 `TO public` 으로 남아있음 (다른 정책은 `TO authenticated`). 동작 영향은 거의 없으나 일관성 정비 필요
-- `submissions` 테이블 UPDATE 정책 부재 (현재는 기본 deny라 즉시 위협 아님) — 후속 PR에서 명시적 self_update or 차단 정책 검토
-- 마이그레이션 파일명 prefix가 같은 일자(`20260516_*`) 2건 — `supabase db push` 알파벳 순으로 실행되지만 의존성 없어 무해
-
-### 12. ✅ Resolved — `matches.participant_update` 정책 + 트리거의 winner write primitive (PR #16 후속 커밋, 외부 리뷰 2차)
-
-- 같은 PR 의 §D-2-b 가 도입한 `matches.participant_update` 정책 + `prevent_protected_matches_update` 트리거 조합이 status/winner_id/end_time 을 보호 대상에서 제외하여, 인증된 매치 참가자가 PostgREST PATCH 로 `{status: 'finished', winner_id: 자기, end_time: now}` 를 직접 박을 수 있었음. 피해자 submit 은 `if (match.status !== "ongoing") return 400` 가드에 막혀 winner 정정 불가 → 위조 winner 영구 유지
-- score primitive(§D-2-d, 9bbe908) 와 완벽 대칭 결함. §D-2-b 마이그레이션 주석은 "status·winner_id 를 잠그고..." 라고 명시했지만 실제 트리거 본문에 비교 절이 없는 의도-구현 불일치
-- **fix** (`20260516_fix_matches_winner_write_primitive.sql`, PR #16 후속 커밋): `participant_update` 정책 DROP → matches 인가 사용자 UPDATE 를 default deny 로 복귀. `submit/route.ts:399` 의 matches finalize UPDATE 를 같은 라우트의 `serviceClient` 로 전환 (이미 score 갱신용으로 재사용 중). 트리거는 안전망 역할로 유지
+- `match_participants.self_insert`/`self_delete` `TO public` → `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화 (B-1)
 
 ---
 
@@ -357,7 +254,7 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 - `public.find_or_enqueue_match(p_user_id uuid, p_mmr integer)` — SECURITY DEFINER, **service_role EXECUTE 단독** (`REVOKE ALL FROM PUBLIC`). 자동 매칭 큐 원자 처리: 본인 stale row upsert 정리 → 대기 상대 1명 `FOR UPDATE SKIP LOCKED` 탐색(`status='waiting'`, MMR 가장 가까운 순, 10분 좀비 제외) → 있으면 매치(`ongoing`, host_id NULL) + 참가자 2명 INSERT + 상대 큐 row `matched`+match_id 갱신, 없으면 본인 큐 `waiting` 등록(ON CONFLICT 멱등). 반환 `(matched bool, out_match_id uuid)`. 동시 진입 race 차단 (MVP A-2)
 - `public.prevent_protected_profiles_update()` — `profiles` BEFORE UPDATE 트리거 함수 (SECURITY INVOKER, Step 4.5). `auth.role() = 'service_role'` 분기로 service_role 호출은 검사 패스, 그 외에는 보호 컬럼 7종(mmr/tier/wins/losses/streak/id/created_at)이 OLD와 다르면 RAISE EXCEPTION
 
-### `matches` 추가 컬럼 (PR #6 선반영, PR #8에서 사용 예정)
+### `matches` 추가 컬럼 (PR #6 추가 — 친구 초대 매칭에 사용 중)
 
 - `invite_token TEXT UNIQUE`
 - `invite_expires_at TIMESTAMPTZ`
@@ -401,12 +298,12 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`              | anon 키                     | 동상                                                                    |
 | `SUPABASE_SERVICE_ROLE_KEY`                  | service role 키 (서버 전용) | `service.ts` (히든 케이스 조회 + score/winner 갱신 + ai_reviews INSERT) |
 | `LEGACY_NEXT_PUBLIC_SUPABASE_*`              | 구 키 잔재 (정리 후보)      | 미사용                                                                  |
-| `CALLBACK_URL`                               | OAuth callback URL          | (PR #7-B에서 사용 예정)                                                 |
+| `CALLBACK_URL`                               | OAuth callback URL          | (OAuth Provider 설정값 — Supabase 대시보드)                             |
 | `JUDGE0_API_URL` / `_KEY` / `_HOST`          | Judge0 (RapidAPI)           | judge/route.ts, submit/route.ts                                         |
 | `GEMINI_API_KEY`                             | Gemini AI 리뷰              | `generateReview.ts` (PR Step 4-B)                                       |
 | `GEMINI_MODEL` (선택)                        | Gemini 모델명 override      | `generateReview.ts` 기본값 `gemini-2.5-flash`                           |
-| `GITHUB_CLIENT_ID` / `_SECRETS`              | GitHub OAuth Provider       | (PR #7-B에서 사용 예정)                                                 |
-| `클라이언트_ID` / `클라이언트_보안_비밀번호` | Google OAuth Provider       | (PR #7-B에서 사용 예정)                                                 |
+| `GITHUB_CLIENT_ID` / `_SECRETS`              | GitHub OAuth Provider       | (OAuth Provider 설정값 — Supabase 대시보드)                             |
+| `클라이언트_ID` / `클라이언트_보안_비밀번호` | Google OAuth Provider       | (OAuth Provider 설정값 — Supabase 대시보드)                             |
 
 ---
 
@@ -425,54 +322,6 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
-- **일자**: 2026-06-06 (**problems 구조화 컬럼 분리 + ProblemPanel 섹션 카드** — PR #25 `6249e74` dev 머지 완료)
-- **배경**: 문제 패널의 문제설명/입력/출력/예시가 단일 `description` 마크다운이라 시각 구분 약함 → 처음엔 렌더 레이어 파싱으로 해결했으나, 사용자가 "테이블 설계 문제" 지적 → **DB 구조 분리**로 근본 해결 전환.
-- **DB**: `input_format`/`output_format` TEXT NOT NULL + `examples` JSONB NOT NULL(`[{input,output,explanation?}]` 다중 예시) 추가, `description`=문제설명 본문만. 9건 id 유지 UPDATE 백필(FK 무영향, 원본 백업 테이블 보존), #8/#9 `### 설명`→explanation. **MCP 검증 완료**(9건 분리·NOT NULL·explanation 2건). schema_migrations 미기록(SQL Editor 직접 실행, B-4 대상).
-- **코드**: 파싱 폐기→컬럼 직접 사용. 신규 `ProblemMetaHeader`/`ProblemSection`/`ProblemExampleSection`, `parseProblemDescription` 제거, `IProblem` 확장. **AI 리뷰 회귀 방지**(review/route.ts 4필드 재조합). 마이그레이션 2개(구조화+신규시드).
-- **워크플로우**: agent-team-workflow(opus) Analyzer→Writer→Reviewer. Code Review Critical 0 / W-1(백업테이블 RLS·REVOKE) W-2(검증 자동실패 DO 블록) fix 반영. 화면 확인 완료.
-- **다음**: Post-MVP 최우선 리더보드 전적 RPC(`get_leaderboard` 집계, 승/패/승률). (참고: 테스트용 대전시간 9000초 커밋이 PR에 섞였던 것은 `feb967b`로 900 복원하여 dev엔 15분 유지)
-
-### 이전 갱신 (2026-06-06, MVP 범위 재정의 — A-3 Post-MVP 이동)
-
-- **일자**: 2026-06-06 (**MVP 범위 재정의 — A-3 프로필 역량 분석 Post-MVP 이동**. 문서 정리 전용 세션, 코드 변경 없음)
-- **결정**: A-3(태그별 강점/약점 방사형 차트)를 MVP → Post-MVP 로 이동. MVP 는 0·1·2 까지로 핵심 완료. 사유: 실측 DB(finished 7건 / submissions 14건 / 유저 5명 / 태그 6종)에서 태그당 표본 1~2건이라 데이터 의존 후행 기능인 역량 분석이 MVP 단계에서 "데이터 부족" 폴백만 노출 → 실질 가치 낮음.
-- **Post-MVP 우선순위**: ① 리더보드 전적 표시(`get_leaderboard` 집계 RPC, 승/패/승률 — 데이터 적어도 즉시 보이는 실질 기능) → ② 프로필 역량 분석(A-3, 매치 데이터 축적 후) → ③ AI 대전 봇(A-4).
-- **문서 동기화**: `BLUEPRINT.md`(Phase 5) / `README.md`(Step 5 세분화) / `NEXT_SESSION.md`(SoT 개편) / `PROJECT_STATUS.md`(본 문서) / `SCREEN_STATUS.md`. dev 직접 커밋.
-- **다음 액션**: ① (권장) A-2 실매치 런타임 검증 1회 → ② Post-MVP 최우선 리더보드 전적 RPC. (상세는 `docs/NEXT_SESSION.md` SoT)
-
-### 이전 갱신 (2026-06-03, MVP A-2 자동 매칭 큐)
-
-- **일자**: 2026-06-03 (MVP 2번 자동 매칭 큐 A-2 — **PR #24 dev 머지(`19d0f6b`) + 마이그레이션 2개 DB 적용·MCP 검증 완료**. MVP 0·1·2 완료, 마지막 3번 A-3만 남음)
-- **시점**: A-2 자동 매칭 큐 완료. brainstorming(동접 극소·워커 없음·무한대기+취소·MMR 가장 가까운 1명·인라인 모달 확정) → spec(`docs/superpowers/specs/2026-06-03-a2-matchmaking-queue-design.md`) → plan(`docs/superpowers/plans/2026-06-03-a2-matchmaking-queue.md`) → agent-team-workflow(opus, Analyzer 단계는 spec/plan 으로 대체) → Code Review(opus) → PR #24 머지.
-- **A-2 요약**: 신규 `matchmaking_queue` 테이블 + service-role 원자 매칭 RPC `find_or_enqueue_match`(`FOR UPDATE SKIP LOCKED`) + `POST /api/match/matchmaking/{join,leave}` + `MatchmakingDialog` 공용 모달(홈/대시보드 placeholder 2곳 활성화) + `useMatchmakingQueue` 훅(Realtime + 5초 폴링). 자동 매칭 매치는 `host_id=NULL`이라 `getResultData` host/guest 슬롯을 host_id 비의존으로 + `IResultMatch.hostId` nullable 전환(회귀 fix). 신규 feature 파일: `app/features/match/{components/MatchmakingDialog,hooks/useMatchmakingQueue,types/matchmaking}`. 마이그레이션 `20260603_matchmaking_queue.sql`.
-- **Code Review(opus)**: Critical 1 fix — **C-1**(self_insert 정책이 `status`/`match_id` 위조 INSERT 허용 → self_insert 정책 미생성으로 INSERT default deny). Warning **W-1**(더블클릭 23505 → `(c)` `ON CONFLICT DO UPDATE` 멱등화). **N-2**(폴링 catch 변수명). N-1/N-3~N-6 전부 부합.
-- **보안/리뷰 후속 누적 fix (DB 검증 완료)**:
-  - **RPC EXECUTE 권한 노출 (`197f686`)** — Supabase 가 public 스키마 함수에 `anon`/`authenticated` EXECUTE 를 default privileges 로 자동 부여 → `REVOKE FROM PUBLIC` 만으론 안 지워짐. `REVOKE ... FROM anon, authenticated` 명시 추가. 현재 권한 `postgres`/`service_role` 만 (MCP 검증)
-  - **join 중복 가드 (`ed57a47`)** — `hasJoinedRef`(open당 1회) + effect-local `isMounted` → 컴포넌트 레벨 `isMountedRef` 승격(StrictMode mount→cleanup→mount 에서 1차 join 응답이 버려져 매칭됐는데 멈추는 split-state 방지)
-  - **`match_participants(match_id, user_id)` UNIQUE** — `20260603_match_participants_unique.sql`, 중복 0건 확인 후 적용, `match_participants_match_user_unique` MCP 검증
-  - **동시 진입 데드락 한계 주석** — RPC `(c)`/폴링에 명시 + B-8 기록
-- **후속(B-7 `matched` 큐 row 누적 / B-8 동시 진입 데드락)** — 동접 극소 전제라 MVP 무해, B-5 와 묶어 후속.
-- **검증**: 마이그레이션 2개 DB 적용 + MCP 교차 검증 완료. tsc/lint/build 미실행(자동검증 금지). **실매치 런타임 수동 검증만 미완**(두 계정 동시 매칭 → /play → 대전 루프 → 결과·MMR).
-- **다음 액션**: ① (권장) A-2 실매치 런타임 검증 1회 → ② **MVP 3번 프로필 역량 분석(A-3) — 완료 시 MVP 종료**. Post-MVP 최우선은 리더보드 전적 RPC. (상세는 `docs/NEXT_SESSION.md` SoT)
-
-### 이전 갱신 (2026-06-03, MVP 0·1번)
-
-- **시점**: **PR #22(`bf15a08`) + PR #23(`f6910fc`) dev 머지 완료**. 0번 UX 개선(프로필 진입점 + 홈 카피 + 프로필 MMR/tier 배지) + 1번 리더보드 MVP(A-1). 각각 agent-team-workflow(opus) + Code Review(opus). 리더보드 진행 중 GitHub Desktop ↔ CLI 동시 조작으로 stash pop 충돌 1회 발생 후 해소.
-- **리더보드 요약**: `/leaderboard` server component — `getLeaderboard`(profiles MMR DESC→created*at ASC, 익명 `Anon*`제외, RLS 전체 read 직접 조회) +`rankEntries`(동점 같은 순위 1-2-2-2-5, 한 번 순회) + `LeaderboardView`(순위 리스트, 행 Link 프로필 이동, 본인 하이라이트, tier/mmr 배지). 진입: 글로벌 헤더 링크 + 홈 카드. `/leaderboard` 보호 prefix. **DB 스키마 변경 0**. 전적은 Post-MVP 최우선(`get_leaderboard` 집계 RPC)으로 분리.
-
----
-
-### 이전 갱신 (2026-05-31, Step 4.5 MMR)
-
-- **시점**: Step 4.5 MMR 산출 **PR #21 dev 머지 완료 (`08753ba`, squash)**. 마이그레이션은 사용자가 DB 직접 적용 완료. brainstorming + spec(`docs/superpowers/specs/2026-05-31-step45-mmr-design.md`) + plan(`docs/superpowers/plans/2026-05-31-step45-mmr.md`) → agent-team-workflow(opus) 구현 → Code Review(opus) 2회 + 외부 세션 PR 리뷰 → 리뷰 #1(부분 실패 시 화면 모순 — profiles→mmr_change 순서 교체) fix → 머지.
-- **변경 요약**: 신규 `app/features/match/utils/calculateMmr.ts`(Elo K=32 순수함수) + `getTierByMmr.ts`(5단계 200간격) + 마이그레이션 `20260531_protect_profiles_rating_columns.sql` / 수정 `submit/route.ts`(finalize 블록에 service-role MMR 갱신 + mmrChange payload)·`getResultData.ts`(mmr_change/mmr/tier select)·result types(`IResultParticipant`에 mmrChange/currentMmr/tier)·`ParticipantCodeCard.tsx`(변동 정적 표시). **DB 스키마 변경 없음** — 평점 컬럼이 이미 전부 존재(DB 검증으로 확인, "신설"→"빈 컬럼 채우기"로 재정의).
-- **보안**: `profiles.self_update` 가 컬럼 제한 없이 mmr/tier 위조 가능하던 write primitive 를 `prevent_protected_profiles_update` 트리거로 차단(보호 컬럼 7종 OLD 고정, service_role 우회). PR #16의 score/winner write primitive 와 동일 패턴. self_update 정책은 유지(nickname/bio 편집 보존).
-- **Code Review(opus)**: Critical 0. W-1(match_participants/profiles 갱신에 `.select("id")` 후 affected row 0 가드 누락 — CODE_CONVENTIONS "필수" 패턴, PR #16에서 동일 누락이 score 26건 NULL 회귀 일으킨 이력) fix 반영. W-2(profiles mmr read-modify-write 비원자성 — 현 1:1 구조상 무해) 인지 항목. N-1~3(중복 fallback / ±0 표기 등) 보류.
-- **스코프**: MMR + tier 만. wins/losses/streak 는 기존 `get_profile_stats` RPC(matches 실시간 집계) 유지로 이중 소스 회피. 기존 finished 3건 소급 없음(mmr_change NULL → 결과 페이지 변동 섹션 숨김).
-- **검증**: 마이그레이션 트리거 DB 적용 확인(`prevent_protected_profiles_update` 존재 + service_role 우회 분기). tsc/lint/build 미실행(자동검증 금지). 실매치 MMR 갱신 동작은 수동 검증 대기.
-- **다음 액션 순서**:
-  1. **Step 4.5 커밋/PR/머지** — 사용자 명시 요청 시. 실매치 1건 완주로 MMR 갱신·결과 표시 수동 검증 권장
-  2. **§D-2 후속 정리** — `match_participants.self_insert`/`self_delete` `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화
-  3. **AI 리뷰 후속** — F2(Gemini 동시요청 N배 — `ai_reviews` status 컬럼) / W-4(me·opponent DRY) / Next Step 학습 추천 / F5("finished" const) / 프롬프트 캐싱 / `@google/genai` npm 취약점
-  4. **리더보드 (Phase 5)** — MMR 도입 완료로 진입 가능
-  5. **§C 개선 후보 ❶ ❷** — Realtime 노트에서 발견
+- **2026-06-06** — 문서 최적화: 누적 세션 히스토리 3문서(PROJECT_STATUS / SCREEN_STATUS / NEXT_SESSION) 압축. 현재 상태·DB SoT·보안 fix 이력·Post-MVP 로드맵은 보존, 과거 세션별 상세는 git 히스토리로 위임.
+- **직전 코드 변경**: PR #25(problems 구조화 컬럼 분리 + ProblemPanel 섹션 카드) / PR #26(글로벌 네비 메뉴바 + 홈 카드 정리) — 상세는 위 "한 줄 진단" + `docs/NEXT_SESSION.md`.
+- 세션별 작업 이력 SoT는 `docs/NEXT_SESSION.md`(현재 상태 + Post-MVP 로드맵 + 기술 부채 B-1~8).
