@@ -1,3 +1,5 @@
+import type { TFinishedStatus } from "@/app/features/match/types";
+
 export interface IResultParticipantSubmission {
   id: string;
   code: string;
@@ -21,7 +23,7 @@ export interface IResultParticipant {
 
 export interface IResultMatch {
   id: string;
-  status: "finished";
+  status: TFinishedStatus;
   winnerId: string | null;
   endTime: string;
   problemId: string;

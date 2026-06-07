@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { TFinishedStatus } from "@/app/features/match/types";
 import type {
   IResultData,
   IResultParticipant,
@@ -182,7 +183,7 @@ export async function getResultData({
   return {
     match: {
       id: matchRow.id,
-      status: matchRow.status as "finished",
+      status: matchRow.status as TFinishedStatus,
       winnerId: matchRow.winner_id,
       endTime: matchRow.end_time,
       problemId: matchRow.problem_id,

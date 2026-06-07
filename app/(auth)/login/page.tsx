@@ -38,7 +38,7 @@ export default function LoginPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center gap-2 text-zinc-400">
+      <div className="flex flex-col items-center gap-2 text-muted-foreground">
         <Loader2 className="size-6 animate-spin" aria-hidden="true" />
         <span className="text-sm">로딩중...</span>
       </div>
@@ -49,7 +49,7 @@ export default function LoginPage() {
     <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-8 space-y-6 shadow-xl">
       <div className="space-y-1 text-center">
         <h1 className="text-2xl font-bold text-zinc-50">Code Clash</h1>
-        <p className="text-sm text-zinc-400">1:1 알고리즘 대전</p>
+        <p className="text-sm text-muted-foreground">1:1 알고리즘 대전</p>
       </div>
 
       <div className="h-px w-full bg-zinc-800" aria-hidden="true" />

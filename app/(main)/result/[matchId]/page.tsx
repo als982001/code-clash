@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
+import { MATCH_STATUS } from "@/app/features/match/types";
 import { getAiReview } from "@/app/features/review/utils/getAiReview";
 import { createClient } from "@/app/shared/lib/supabase/server";
 
@@ -54,11 +55,11 @@ export default async function ResultPage({ params }: IResultPageProps) {
 
   const status = statusRes.data.status as string;
 
-  if (status === "waiting" || status === "ongoing") {
+  if (status === MATCH_STATUS.WAITING || status === MATCH_STATUS.ONGOING) {
     redirect(`/play/${matchId}`);
   }
 
-  if (status !== "finished") {
+  if (status !== MATCH_STATUS.FINISHED) {
     notFound();
   }
 

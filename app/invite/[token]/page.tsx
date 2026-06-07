@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { MATCH_STATUS } from "@/app/features/match/types";
 import type { TInvitePageError } from "@/app/features/match/types/invite";
 import { isInviteExpired } from "@/app/features/match/utils/isInviteExpired";
 import { createClient } from "@/app/shared/lib/supabase/server";
@@ -28,11 +29,11 @@ export default async function InvitePage({ params }: IInvitePageProps) {
   }
 
   // status를 만료보다 먼저 검사: 만료된 ongoing 매치에서도 "이미 시작됨"이 더 정확한 안내
-  if (match.status === "ongoing") {
+  if (match.status === MATCH_STATUS.ONGOING) {
     return <InviteErrorView reason="already_started" />;
   }
 
-  if (match.status === "finished") {
+  if (match.status === MATCH_STATUS.FINISHED) {
     return <InviteErrorView reason="already_finished" />;
   }
 
