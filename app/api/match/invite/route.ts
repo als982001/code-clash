@@ -8,8 +8,9 @@ import { NextResponse } from "next/server";
 // PostgrestError: Supabase가 PostgREST 통해 던지는 에러 타입. code 필드(e.g. "23505")로 분기 가능.
 import type { PostgrestError } from "@supabase/supabase-js";
 
-import { createInviteToken } from "@/app/features/match/utils/createInviteToken";
+import { MATCH_STATUS } from "@/app/features/match/types";
 import type { IInviteMatch } from "@/app/features/match/types/invite";
+import { createInviteToken } from "@/app/features/match/utils/createInviteToken";
 // requireUser: 인증된 user를 보장하는 헬퍼. 비로그인이면 401 응답 객체를 반환,
 // 로그인이면 { ok: true, user, client } 형태로 user + supabase 서버 클라이언트를 함께 넘긴다.
 import { requireUser } from "@/app/shared/lib/auth/requireUser";
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
     const { data: match, error: matchInsertError } = await client
       .from("matches")
       .insert({
-        status: "waiting",
+        status: MATCH_STATUS.WAITING,
         host_id: userId,
         invite_token: token,
         invite_expires_at: inviteExpiresAt,

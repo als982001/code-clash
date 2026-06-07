@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { requireUser } from "@/app/shared/lib/auth/requireUser";
 import { createServiceClient } from "@/app/shared/lib/supabase/service";
+import { MATCH_STATUS } from "@/app/features/match/types";
 import { calculateMmr } from "@/app/features/match/utils/calculateMmr";
 import { getTierByMmr } from "@/app/features/match/utils/getTierByMmr";
 
@@ -248,7 +249,7 @@ export async function POST(
     );
   }
 
-  if (match.status !== "ongoing") {
+  if (match.status !== MATCH_STATUS.ONGOING) {
     return NextResponse.json(
       { error: "진행 중인 대전이 아닙니다." },
       { status: 400 },
@@ -405,12 +406,12 @@ export async function POST(
     const { data: finishedMatch } = await serviceClient
       .from("matches")
       .update({
-        status: "finished",
+        status: MATCH_STATUS.FINISHED,
         winner_id: winnerId,
         end_time: new Date().toISOString(),
       })
       .eq("id", matchId)
-      .eq("status", "ongoing")
+      .eq("status", MATCH_STATUS.ONGOING)
       .select("id");
 
     // 이미 다른 요청이 판정을 완료했으면 브로드캐스트 스킵

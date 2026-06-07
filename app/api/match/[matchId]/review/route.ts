@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { MATCH_STATUS } from "@/app/features/match/types";
 import type { IProblemExample } from "@/app/features/problem/types";
 import { generateReview } from "@/app/features/review/utils/generateReview";
 import { getAiReview } from "@/app/features/review/utils/getAiReview";
@@ -47,7 +48,7 @@ export async function POST(
     );
   }
 
-  if (match.status !== "finished") {
+  if (match.status !== MATCH_STATUS.FINISHED) {
     return NextResponse.json(
       { error: "종료된 대전이 아닙니다." },
       { status: 400 },
