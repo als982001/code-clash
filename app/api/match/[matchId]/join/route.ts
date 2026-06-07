@@ -1,37 +1,58 @@
 import { NextResponse } from "next/server";
 
-import { createClient } from "@/app/shared/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+// requireUser: 쿠키 세션을 서버에서 검증해 user를 보장하는 헬퍼.
+import { requireUser } from "@/app/shared/lib/auth/requireUser";
+// service client: service_role 키 RLS 우회 싱글턴 (fail-fast).
+// matches RLS가 host/participant 한정으로 좁혀진 후 토큰 검증/정원 체크/INSERT/UPDATE를
+// 라우트가 직접 수행하려면 RLS 우회가 필요하다. requireUser + 토큰 검증을 사전에 통과한 후에만 사용.
+import { createServiceClient } from "@/app/shared/lib/supabase/service";
 
 /**
  * 대전 방에 참가한다. 2명이 모이면 자동으로 게임을 시작한다.
+ * - body.token이 매치의 invite_token과 일치할 때만 허용 (매치 hijack 차단)
  * - status를 ongoing으로 변경
- * - 랜덤 문제 배정
- * - start_time 기록
+ * - 랜덤 문제 배정 + start_time 기록
  * @param params.matchId 참가할 대전 방 ID
  * @return 업데이트된 match 정보
  */
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ matchId: string }> },
 ) {
   const { matchId } = await params;
 
-  const { client } = await createClient();
+  // 인증 게이트
+  const auth = await requireUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await client.auth.getUser();
+  if (!auth.ok) return auth.response;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+  const userId = auth.user.id;
+
+  // 게스트가 보낸 invite_token 추출 (이후 매치의 invite_token과 비교)
+  const body = (await request.json().catch(() => ({}))) as {
+    token?: string;
+  };
+  const requestToken = body?.token;
+
+  let client: SupabaseClient;
+
+  try {
+    client = createServiceClient().client;
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json(
+      { error: "초대 검증 서버 설정이 누락되었습니다 (E_SERVICE)." },
+      { status: 500 },
+    );
   }
 
-  const userId = user.id;
-
+  // ── match 조회 + 상태 검증 ────────────────────────────────────────
   const { data: match, error: matchError } = await client
     .from("matches")
-    .select("id, status")
+    .select("id, status, host_id, invite_token")
     .eq("id", matchId)
     .single();
 
@@ -49,6 +70,26 @@ export async function POST(
     );
   }
 
+  // 호스트 본인은 join 대상이 아님 (이미 invite API에서 host로 등록됨).
+  // /invite/[token] 페이지에서 호스트는 자동 redirect되지만 직접 호출 케이스 차단.
+  if (match.host_id === userId) {
+    return NextResponse.json(
+      { error: "호스트는 자기 매치에 참가할 수 없습니다." },
+      { status: 400 },
+    );
+  }
+
+  // ⭐ ── invite_token 검증 (매치 hijack 차단) ───────────────────────
+  // 토큰 모르는 사용자가 match id만으로 임의 매치에 난입하는 케이스 차단.
+  // body.token이 매치의 invite_token과 정확히 일치할 때만 허용.
+  if (!requestToken || match.invite_token !== requestToken) {
+    return NextResponse.json(
+      { error: "유효하지 않은 초대입니다." },
+      { status: 403 },
+    );
+  }
+
+  // ── 사전 카운트 체크 (fast path) ─────────────────────────────────
   const { data: existingParticipants } = await client
     .from("match_participants")
     .select("user_id")
@@ -68,6 +109,7 @@ export async function POST(
     );
   }
 
+  // ── participant insert ───────────────────────────────────────────
   const { error: joinError } = await client.from("match_participants").insert({
     match_id: matchId,
     user_id: userId,
@@ -82,14 +124,13 @@ export async function POST(
     );
   }
 
-  // Race condition 방어: insert 후 실제 참가자 수 재확인
+  // ⚠️ ── 사후 재검증 (race condition 방어) ──────────────────────────
   const { data: verifyParticipants } = await client
     .from("match_participants")
     .select("id, user_id")
     .eq("match_id", matchId);
 
   if ((verifyParticipants?.length ?? 0) > 2) {
-    // 초과 참가자 롤백 (본인 삭제)
     const myParticipant = verifyParticipants?.find((p) => p.user_id === userId);
 
     if (myParticipant) {
@@ -105,8 +146,8 @@ export async function POST(
     );
   }
 
+  // ── 정원 충족 시 게임 시작 처리 ────────────────────────────────────
   if ((verifyParticipants?.length ?? 0) === 2) {
-    // 전체 문제 목록에서 랜덤 선택
     const { data: allProblems } = await client.from("problems").select("id");
 
     let problemId: string | null = null;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireUser } from "@/app/shared/lib/auth/requireUser";
 import type {
   IJudgeResponse,
   IJudgeResult,
@@ -162,6 +163,10 @@ const executeTestCase = async ({
  * @return 테스트 케이스별 통과/실패 결과
  */
 export async function POST(request: Request) {
+  const auth = await requireUser();
+
+  if (!auth.ok) return auth.response;
+
   if (!JUDGE0_API_URL || !JUDGE0_API_KEY) {
     return NextResponse.json(
       { error: "채점 서버 설정이 누락되었습니다." },

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createClient } from "@/app/shared/lib/supabase/server";
+import { requireUser } from "@/app/shared/lib/auth/requireUser";
 
 /**
  * 단일 문제를 상세 조회한다.
@@ -12,6 +12,11 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ problemId: string }> },
 ) {
+  const auth = await requireUser();
+
+  if (!auth.ok) return auth.response;
+
+  const { client } = auth;
   const { problemId } = await params;
 
   const uuidRegex =
@@ -24,11 +29,11 @@ export async function GET(
     );
   }
 
-  const { client } = await createClient();
-
   const { data: problem, error: problemError } = await client
     .from("problems")
-    .select("*")
+    .select(
+      "id, title, description, input_format, output_format, examples, difficulty, time_limit, memory_limit, tags",
+    )
     .eq("id", problemId)
     .single();
 

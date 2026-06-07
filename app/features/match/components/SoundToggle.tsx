@@ -21,8 +21,16 @@ export default function SoundToggle() {
   });
 
   useEffect(() => {
+    // Zustand persist의 hydration 완료 이벤트를 구독해 setHydrated 호출.
+    // effect body에서 동기 setState하는 안티패턴(React 19 cascading render 경고)을 회피하고,
+    // rehydrate가 끝난 진짜 시점에 hydrated=true가 반영된다.
+    const unsubFinishHydration = useSoundStore.persist.onFinishHydration(() => {
+      setHydrated(true);
+    });
+
     useSoundStore.persist.rehydrate();
-    setHydrated(true);
+
+    return unsubFinishHydration;
   }, []);
 
   const showMuted = hydrated && isMuted;

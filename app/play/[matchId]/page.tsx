@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { use } from "react";
 
+import Link from "next/link";
 import { toast } from "sonner";
 
 import EditorPanel from "@/app/features/editor/components/EditorPanel";
@@ -10,11 +11,11 @@ import type {
   IJudgeResponse,
   IOpponentProgress,
 } from "@/app/features/editor/types";
-import { useAnonymousAuth } from "@/app/shared/hooks/useAnonymousAuth";
 import MatchStatusBar from "@/app/features/match/components/MatchStatusBar";
 import SoundToggle from "@/app/features/match/components/SoundToggle";
 import { useMatchRealtime } from "@/app/features/match/hooks/useMatchRealtime";
 import { useMatchSounds } from "@/app/features/match/hooks/useMatchSounds";
+import { useMatchStatus } from "@/app/features/match/hooks/useMatchStatus";
 import { useMatchTimer } from "@/app/features/match/hooks/useMatchTimer";
 import type {
   IPlayerReadyPayload,
@@ -24,7 +25,10 @@ import type {
 } from "@/app/features/match/types";
 import ProblemPanel from "@/app/features/problem/components/ProblemPanel";
 import type { IProblem } from "@/app/features/problem/types";
-import { createClient } from "@/app/shared/lib/supabase/client";
+import { useAuth } from "@/app/shared/hooks/useAuth";
+import HostWaitingView from "@/app/play/[matchId]/_components/HostWaitingView";
+import WaitingForGameStart from "@/app/play/[matchId]/_components/WaitingForGameStart";
+import { buttonVariants } from "@/components/ui/button-variants";
 
 /** 대전 제한 시간 (초) - 15분 */
 const MATCH_DURATION_SECONDS = 900;
@@ -35,9 +39,11 @@ interface IPlayPageProps {
 
 export default function PlayPage({ params }: IPlayPageProps) {
   const { matchId } = use(params);
-  const { userId, isLoading: isAuthLoading } = useAnonymousAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const userId = user?.id ?? null;
+
   const [problem, setProblem] = useState<IProblem | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isFetchingProblem, setIsFetchingProblem] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [judgeResult, setJudgeResult] = useState<IJudgeResponse | null>(null);
@@ -50,7 +56,6 @@ export default function PlayPage({ params }: IPlayPageProps) {
   const [matchResult, setMatchResult] = useState<IMatchFinishedPayload | null>(
     null,
   );
-  const [startTime, setStartTime] = useState<string | null>(null);
 
   const hasAutoSubmittedRef = useRef(false);
   const hasPlayedWarningRef = useRef(false);
@@ -60,8 +65,26 @@ export default function PlayPage({ params }: IPlayPageProps) {
     language: "javascript",
   });
 
-  const { client } = useMemo(() => {
-    return createClient();
+  const {
+    status: matchStatus,
+    hostId,
+    inviteToken,
+    inviteExpiresAt,
+    problemId,
+    startTime,
+    isLoading: isMatchStatusLoading,
+    isRealtimeConnected,
+    error: matchStatusError,
+  } = useMatchStatus({ matchId });
+
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   const { playSound } = useMatchSounds();
@@ -141,36 +164,44 @@ export default function PlayPage({ params }: IPlayPageProps) {
     },
   });
 
+  // status가 ongoing으로 전환되고 problemId가 확정된 시점에만 문제 fetch
   useEffect(() => {
+    if (matchStatus !== "ongoing" && matchStatus !== "finished") return;
+    if (!problemId) return;
+
+    let isMounted = true;
+
     const fetchProblem = async () => {
-      const { data: match } = await client
-        .from("matches")
-        .select("problem_id, start_time")
-        .eq("id", matchId)
-        .single();
+      setIsFetchingProblem(true);
 
-      if (!match?.problem_id) {
-        setIsLoading(false);
-        return;
+      try {
+        const response = await fetch(`/api/problems/${problemId}`);
+
+        if (!isMounted) return;
+
+        if (!response.ok) {
+          setIsFetchingProblem(false);
+          return;
+        }
+
+        const { data } = await response.json();
+
+        if (!isMounted) return;
+
+        setProblem(data);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (isMounted) setIsFetchingProblem(false);
       }
-
-      setStartTime(match.start_time ?? null);
-
-      const response = await fetch(`/api/problems/${match.problem_id}`);
-
-      if (!response.ok) {
-        setIsLoading(false);
-        return;
-      }
-
-      const { data } = await response.json();
-
-      setProblem(data);
-      setIsLoading(false);
     };
 
     fetchProblem();
-  }, [matchId, client]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [matchStatus, problemId]);
 
   // 문제 로딩 완료 + 채널 구독 완료 후 PLAYER_READY 브로드캐스트
   useEffect(() => {
@@ -186,62 +217,63 @@ export default function PlayPage({ params }: IPlayPageProps) {
     });
   }, [problem, isSubscribed, isReady, userId, broadcast]);
 
-  const handleRun = async ({
-    code,
-    language,
-  }: {
-    code: string;
-    language: string;
-  }) => {
-    if (!problem?.testCases?.length) {
-      return;
-    }
-
-    setIsRunning(true);
-    setJudgeResult(null);
-
-    try {
-      const response = await fetch("/api/judge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          language,
-          testCases: problem.testCases,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-
-        console.error(error);
+  const handleRun = useCallback(
+    async ({ code, language }: { code: string; language: string }) => {
+      if (!problem?.testCases?.length) {
         return;
       }
 
-      const { data } = await response.json();
+      setIsRunning(true);
+      setJudgeResult(null);
 
-      setJudgeResult(data);
+      try {
+        const response = await fetch("/api/judge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code,
+            language,
+            testCases: problem.testCases,
+          }),
+        });
 
-      setMyProgress({
-        passedCount: data.totalPassed,
-        totalCount: data.totalCases,
-      });
+        if (!isMountedRef.current) return;
 
-      // 코드 실행 결과를 상대방에게 브로드캐스트
-      broadcast({
-        event: "PROGRESS_UPDATE",
-        payload: {
-          userId,
+        if (!response.ok) {
+          const error = await response.json();
+
+          console.error(error);
+          return;
+        }
+
+        const { data } = await response.json();
+
+        if (!isMountedRef.current) return;
+
+        setJudgeResult(data);
+
+        setMyProgress({
           passedCount: data.totalPassed,
           totalCount: data.totalCases,
-        },
-      });
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsRunning(false);
-    }
-  };
+        });
+
+        // 코드 실행 결과를 상대방에게 브로드캐스트
+        broadcast({
+          event: "PROGRESS_UPDATE",
+          payload: {
+            userId,
+            passedCount: data.totalPassed,
+            totalCount: data.totalCases,
+          },
+        });
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (isMountedRef.current) setIsRunning(false);
+      }
+    },
+    [problem, userId, broadcast],
+  );
 
   const handleSubmit = useCallback(
     async ({ code, language }: { code: string; language: string }) => {
@@ -254,6 +286,8 @@ export default function PlayPage({ params }: IPlayPageProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code, language }),
         });
+
+        if (!isMountedRef.current) return;
 
         if (!response.ok) {
           const error = await response.json();
@@ -270,7 +304,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
       } catch (error) {
         console.error(error);
       } finally {
-        setIsSubmitting(false);
+        if (isMountedRef.current) setIsSubmitting(false);
       }
     },
     [matchId, userId, broadcast, playSound],
@@ -346,10 +380,54 @@ export default function PlayPage({ params }: IPlayPageProps) {
     );
   }
 
+  if (isMatchStatusLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <span className="text-muted-foreground">방 정보 불러오는 중...</span>
+      </div>
+    );
+  }
+
+  if (matchStatusError) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4">
+        <p className="text-muted-foreground">방 정보를 불러오지 못했습니다.</p>
+        <Link href="/" className="text-sm underline underline-offset-4">
+          홈으로 돌아가기
+        </Link>
+      </div>
+    );
+  }
+
+  if (matchStatus === null) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4">
+        <p className="text-muted-foreground">대전 방을 찾을 수 없습니다.</p>
+        <Link href="/" className="text-sm underline underline-offset-4">
+          홈으로 돌아가기
+        </Link>
+      </div>
+    );
+  }
+
+  if (matchStatus === "waiting" && userId === hostId) {
+    return (
+      <HostWaitingView
+        inviteToken={inviteToken}
+        expiresAt={inviteExpiresAt}
+        isRealtimeConnected={isRealtimeConnected}
+      />
+    );
+  }
+
+  if (matchStatus === "waiting" && userId !== hostId) {
+    return <WaitingForGameStart />;
+  }
+
   return (
     <div className="flex h-screen">
       <div className="w-1/2 border-r">
-        <ProblemPanel problem={problem} isLoading={isLoading} />
+        <ProblemPanel problem={problem} isLoading={isFetchingProblem} />
       </div>
 
       <div className="h-screen w-1/2">
@@ -373,6 +451,12 @@ export default function PlayPage({ params }: IPlayPageProps) {
                 })?.[1] ?? 0}
               </span>
             </div>
+            <Link
+              href={`/result/${matchId}`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              결과 자세히 보기
+            </Link>
           </div>
         )}
 

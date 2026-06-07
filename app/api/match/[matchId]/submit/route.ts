@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { createClient } from "@/app/shared/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { requireUser } from "@/app/shared/lib/auth/requireUser";
+import { createServiceClient } from "@/app/shared/lib/supabase/service";
+import { calculateMmr } from "@/app/features/match/utils/calculateMmr";
+import { getTierByMmr } from "@/app/features/match/utils/getTierByMmr";
 
 const JUDGE0_API_URL = process.env.JUDGE0_API_URL;
 const JUDGE0_API_KEY = process.env.JUDGE0_API_KEY;
@@ -184,24 +189,18 @@ export async function POST(
 ) {
   if (!JUDGE0_API_URL || !JUDGE0_API_KEY) {
     return NextResponse.json(
-      { error: "채점 서버 설정이 누락되었습니다." },
+      { error: "채점 서버 설정이 누락되었습니다 (E_JUDGE0)." },
       { status: 500 },
     );
   }
 
   const { matchId } = await params;
 
-  const { client } = await createClient();
+  const auth = await requireUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await client.auth.getUser();
+  if (!auth.ok) return auth.response;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
-  }
-
+  const { user, client } = auth;
   const userId = user.id;
 
   const body: ISubmitBody = await request.json();
@@ -278,8 +277,22 @@ export async function POST(
     );
   }
 
-  // 전체 테스트 케이스 조회 (히든 포함)
-  const { data: testCases } = await client
+  // 전체 테스트 케이스 조회 (히든 포함) — service role로 RLS bypass.
+  // service role 사용은 이 한 곳으로 한정한다. 다른 client 호출까지 service로 확장하면 anti-cheat RLS 검증이 사라진다.
+  let serviceClient: SupabaseClient;
+
+  try {
+    serviceClient = createServiceClient().client;
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json(
+      { error: "채점 서버 설정이 누락되었습니다 (E_SERVICE)." },
+      { status: 500 },
+    );
+  }
+
+  const { data: testCases } = await serviceClient
     .from("test_cases")
     .select("id, input, expected_output")
     .eq("problem_id", match.problem_id);
@@ -339,15 +352,21 @@ export async function POST(
     );
   }
 
-  // match_participants에 점수 기록
-  const { error: scoreError } = await client
+  // match_participants에 점수 기록 — service-role 로 RLS 우회.
+  // anon/authenticated 가 PostgREST PATCH 로 자기 row 의 score 를 임의 값으로 덮어쓰는
+  // score write primitive 를 막기 위해 match_participants 의 인가 사용자 UPDATE 는
+  // RLS default deny 로 되돌렸다 (`20260516_fix_match_participants_score_write_primitive.sql`).
+  // score 갱신은 서버 단독 경로로만 가능. affected row 0 가드는 그대로 둬서
+  // 향후 정책 미스매치 회귀가 다시 발생해도 silent fail 없이 500 으로 드러난다.
+  const { data: scoreUpdated, error: scoreError } = await serviceClient
     .from("match_participants")
     .update({ score })
     .eq("match_id", matchId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select("id");
 
-  if (scoreError) {
-    console.error(scoreError);
+  if (scoreError || !scoreUpdated || scoreUpdated.length === 0) {
+    if (scoreError) console.error(scoreError);
 
     return NextResponse.json(
       { error: "점수 저장에 실패했습니다." },
@@ -377,8 +396,13 @@ export async function POST(
       submissions: allSubmissions,
     });
 
-    // Race condition 방어: ongoing인 경우에만 finished로 변경
-    const { data: finishedMatch } = await client
+    // Race condition 방어: ongoing 일 때만 finished 로 변경.
+    // service-role 로 RLS 우회 — 인증된 참가자가 PostgREST PATCH 로 자기 row 의
+    // status='finished', winner_id=자기, end_time=now 를 직접 박는 winner write primitive 를
+    // 막기 위해 matches.participant_update 정책을 DROP 하고 인가 사용자 UPDATE 를
+    // default deny 로 되돌렸다 (`20260516_fix_matches_winner_write_primitive.sql`).
+    // matches finalize 는 서버 단독 경로로만 가능. race window 가드 `.eq("status", "ongoing")` 는 그대로.
+    const { data: finishedMatch } = await serviceClient
       .from("matches")
       .update({
         status: "finished",
@@ -397,6 +421,84 @@ export async function POST(
         scores[p.user_id] = p.score ?? 0;
       });
 
+      // MMR 산출 (Elo) — service-role 단독 갱신.
+      // profiles 평점 컬럼은 prevent_protected_profiles_update 트리거가
+      // 인가 사용자 위조를 차단하고 service_role 만 우회한다 (write primitive 방지).
+      // best-effort: MMR 갱신이 실패해도 매치 결과(winner)는 보존하고
+      // mmr_change 는 NULL 로 남겨 결과 페이지에서 변동 섹션을 숨긴다.
+      const mmrChange: Record<string, number> = {};
+
+      const [participantA, participantB] = allParticipants;
+
+      const { data: profileRows, error: profileFetchError } =
+        await serviceClient
+          .from("profiles")
+          .select("id, mmr")
+          .in("id", [participantA.user_id, participantB.user_id]);
+
+      if (!profileFetchError && profileRows && profileRows.length === 2) {
+        const mmrByUserId = new Map<string, number>();
+
+        profileRows.forEach((row) => {
+          mmrByUserId.set(row.id, row.mmr ?? 1000);
+        });
+
+        const ratingA = mmrByUserId.get(participantA.user_id) ?? 1000;
+        const ratingB = mmrByUserId.get(participantB.user_id) ?? 1000;
+
+        const { changeA, changeB } = calculateMmr({
+          ratingA,
+          ratingB,
+          winnerId,
+          userIdA: participantA.user_id,
+          userIdB: participantB.user_id,
+        });
+
+        const ratingUpdates = [
+          { userId: participantA.user_id, rating: ratingA, change: changeA },
+          { userId: participantB.user_id, rating: ratingB, change: changeB },
+        ];
+
+        for (const update of ratingUpdates) {
+          const newMmr = update.rating + update.change;
+          const { tier } = getTierByMmr({ mmr: newMmr });
+
+          // profiles 를 먼저 갱신한다. profiles 만 성공하고 mmr_change 가 실패하면
+          // mmr_change 는 NULL 로 남아 결과 페이지 레이팅 섹션이 graceful 하게 숨겨지고,
+          // 누적 mmr 은 올바르게 이동해 다음 매치에 반영된다.
+          // (mmr_change 를 먼저 두면 변동값은 표시되는데 누적 mmr 은 갱신 전이라
+          //  "+17 · Bronze 1400" 같은 모순 숫자가 노출된다.)
+          const { data: profileRows2, error: profileUpdateError } =
+            await serviceClient
+              .from("profiles")
+              .update({ mmr: newMmr, tier })
+              .eq("id", update.userId)
+              .select("id");
+
+          const { data: mmrChangeRows, error: mmrChangeError } =
+            await serviceClient
+              .from("match_participants")
+              .update({ mmr_change: update.change })
+              .eq("match_id", matchId)
+              .eq("user_id", update.userId)
+              .select("id");
+
+          const profileFailed =
+            profileUpdateError || !profileRows2 || profileRows2.length === 0;
+          const mmrChangeFailed =
+            mmrChangeError || !mmrChangeRows || mmrChangeRows.length === 0;
+
+          if (profileFailed || mmrChangeFailed) {
+            if (profileUpdateError) console.error(profileUpdateError);
+            if (mmrChangeError) console.error(mmrChangeError);
+          } else {
+            mmrChange[update.userId] = update.change;
+          }
+        }
+      } else if (profileFetchError) {
+        console.error(profileFetchError);
+      }
+
       // MATCH_FINISHED 브로드캐스트 (서버 → 클라이언트)
       const channel = client.channel(`match:${matchId}`);
 
@@ -406,7 +508,7 @@ export async function POST(
         payload: {
           winnerId,
           scores,
-          mmrChange: {},
+          mmrChange,
         },
       });
 

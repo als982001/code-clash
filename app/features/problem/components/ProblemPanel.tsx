@@ -1,20 +1,14 @@
 "use client";
 
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-
+import ProblemExampleSection from "@/app/features/problem/components/ProblemExampleSection";
+import ProblemMetaHeader from "@/app/features/problem/components/ProblemMetaHeader";
+import ProblemSection from "@/app/features/problem/components/ProblemSection";
 import type { IProblem } from "@/app/features/problem/types";
 
 interface IProblemPanelProps {
   problem: IProblem | null;
   isLoading: boolean;
 }
-
-const difficultyColor: Record<string, string> = {
-  "Level 1": "text-green-400",
-  "Level 2": "text-yellow-400",
-  "Level 3": "text-red-400",
-};
 
 export default function ProblemPanel({
   problem,
@@ -37,39 +31,33 @@ export default function ProblemPanel({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto p-6">
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold">{problem.title}</h1>
+    <div className="flex h-full flex-col gap-4 overflow-y-auto p-6">
+      <ProblemMetaHeader problem={problem} />
 
-        <div className="mt-2 flex items-center gap-3">
-          <span
-            className={`text-sm font-medium ${difficultyColor[problem.difficulty] ?? "text-gray-400"}`}
-          >
-            {problem.difficulty}
-          </span>
+      <ProblemSection emoji="📝" title="문제 설명" body={problem.description} />
 
-          <span className="text-muted-foreground text-xs">
-            시간 제한: {problem.time_limit}ms | 메모리 제한:{" "}
-            {Math.floor(problem.memory_limit / 1000)}MB
-          </span>
-        </div>
+      <ProblemSection
+        emoji="📥"
+        title="입력 형식"
+        body={problem.input_format}
+      />
 
-        <div className="mt-2 flex gap-2">
-          {problem.tags.map((tag) => {
-            return (
-              <span key={tag} className="bg-muted rounded px-2 py-0.5 text-xs">
-                {tag}
-              </span>
-            );
-          })}
-        </div>
-      </div>
+      <ProblemSection
+        emoji="📤"
+        title="출력 형식"
+        body={problem.output_format}
+      />
 
-      <div className="prose prose-invert max-w-none flex-1">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {problem.description}
-        </ReactMarkdown>
-      </div>
+      {problem.examples.map((example, index) => {
+        return (
+          <ProblemExampleSection
+            key={index}
+            example={example}
+            index={index}
+            total={problem.examples.length}
+          />
+        );
+      })}
     </div>
   );
 }
