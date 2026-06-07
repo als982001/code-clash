@@ -7,7 +7,7 @@
 
 ## 한 줄 진단
 
-**[2026-06-06] MVP 핵심 루프(매칭 → 대전 → 결과 → AI 리뷰 → MMR → 리더보드) 전부 완성. dev 머지 완료, main 머지 준비 단계.** 친구 초대 매칭 + 자동 매칭 큐(MVP A-2, PR #24) 두 진입로 → 실시간 1:1 대전(Monaco + Judge0 채점, 15분 타이머, HUD/사운드/토스트) → 결과 화면(Shiki SSR 코드 비교) + Gemini AI 코드 리뷰(캐싱) → Elo(K=32) MMR/티어 갱신 → 리더보드(MVP A-1, PR #23) 순위. 인증은 Supabase OAuth(Google/GitHub) + middleware SSR 가드 + 전 API `requireUser` 401. 글로벌 네비 메뉴바(홈/대전하기/리더보드, PR #26)가 홈·(main) 헤더에 마운트. 문제 패널은 구조화 컬럼(`description`/`input_format`/`output_format`/`examples`) 기반 섹션 카드(PR #25).
+**[2026-06-07] MVP 핵심 루프(매칭 → 대전 → 결과 → AI 리뷰 → MMR → 리더보드) 전부 완성 + main 머지 완료. Post-MVP 전 소소 이슈 정리(PR #29) 완료.** 친구 초대 매칭 + 자동 매칭 큐(MVP A-2, PR #24) 두 진입로 → 실시간 1:1 대전(Monaco + Judge0 채점, 15분 타이머, HUD/사운드/토스트) → 결과 화면(Shiki SSR 코드 비교) + Gemini AI 코드 리뷰(캐싱) → Elo(K=32) MMR/티어 갱신 → 리더보드(MVP A-1, PR #23) 순위. 인증은 Supabase OAuth(Google/GitHub) + middleware SSR 가드 + 전 API `requireUser` 401. 글로벌 네비 메뉴바(홈/대전하기/리더보드, PR #26)가 홈·(main) 헤더에 마운트. 문제 패널은 구조화 컬럼(`description`/`input_format`/`output_format`/`examples`) 기반 섹션 카드(PR #25). matches status는 `MATCH_STATUS` 상수 + `TMatchStatus` 타입으로 중앙화(PR #29).
 
 **보안 (write primitive 3종 차단 완료)**: score/winner/mmr 컬럼 모두 — 인가 사용자 UPDATE default deny + service-role 단독 갱신 + BEFORE UPDATE 보호 컬럼 트리거(안전망)로 PostgREST PATCH 위조 차단. invite/matchmaking RPC는 SECURITY DEFINER + 적절한 EXECUTE 권한 분리(matchmaking은 service_role 단독, anon/authenticated REVOKE). 상세는 아래 "구현 완료 영역" + "DB 상태".
 
@@ -90,8 +90,7 @@ app/
 │   ├── match/[matchId]/review/   ✅  AI 코드 리뷰 생성/조회 + 소유검증 + 캐싱 + Gemini + service-role upsert (PR Step 4-B, runtime=nodejs)
 │   ├── problems/route.ts         ✅  문제 목록 + requireUser (PR #7-C)
 │   ├── problems/[problemId]/     ✅  문제 단건 + requireUser (PR #7-C)
-│   ├── profile/me/route.ts       ✅  PATCH 본인 프로필 갱신 + requireUser + UNIQUE 23505 → 409 정밀 매핑 + RLS silent fail 가드 (PR #18)
-│   └── ai/                       ⏳  빈 디렉토리 (미사용 — AI 리뷰는 match/[matchId]/review로 구현)
+│   └── profile/me/route.ts       ✅  PATCH 본인 프로필 갱신 + requireUser + UNIQUE 23505 → 409 정밀 매핑 + RLS silent fail 가드 (PR #18)
 ├── _components/
 │   └── HomeClient.tsx            ✅  홈 페이지 client view — UserMenu 헤더(B PR에서 글로벌 헤더와 동일 className으로 통일) + 분기 + 매치 placeholder + 대시보드 카드 활성화 (PR #7-C/#7-D + B PR)
 ├── features/
@@ -173,10 +172,11 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 
 ## 미구현 / 스텁 영역 ⏳
 
-| 영역           | 마커 | 비고                                                                        |
-| -------------- | ---- | --------------------------------------------------------------------------- |
-| Edge Functions | ⏳   | 0개 (`list_edge_functions` 비어있음) — 서버 로직은 Next API 라우트로 충분   |
-| `app/api/ai/`  | ⏳   | 빈 디렉토리 (미사용 — AI 리뷰는 `match/[matchId]/review`로 구현). 정리 후보 |
+| 영역           | 마커 | 비고                                                                      |
+| -------------- | ---- | ------------------------------------------------------------------------- |
+| Edge Functions | ⏳   | 0개 (`list_edge_functions` 비어있음) — 서버 로직은 Next API 라우트로 충분 |
+
+> `app/api/ai/` 빈 디렉토리는 PR #29에서 제거됨(AI 리뷰는 `match/[matchId]/review`로 구현).
 
 > 그 외 화면/API/인증 인프라는 전부 ✅ 완료 — 위 "앱 구조" 트리 + `SCREEN_STATUS.md` 라우트 표 참고.
 
@@ -201,7 +201,7 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 
 ### ℹ️ 7. 코드 리뷰 nit 후속
 
-- placeholder Card 시멘틱 / 개발 jargon 카피 / LoginPage `text-zinc-400` → design token 통일 / `app/_components/` 폴더 컨벤션 가이드
+- ✅ LoginPage `text-zinc-400` → `text-muted-foreground` design token 통일 (PR #29). placeholder Card·jargon 카피는 PR #26에서 제거되며 stale. 남음: `app/_components/` 폴더 컨벤션 가이드(문서성)
 
 ### ℹ️ 11. 후속 정리 후보
 
@@ -322,6 +322,7 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
+- **2026-06-07** — PR #29(Post-MVP 전 소소 이슈 묶음) dev 머지 반영: A2 status 상수화(`MATCH_STATUS`/`TMatchStatus`) / B-6 §C Realtime 개선 완료 / 로그인 디자인 토큰 통일 / `app/api/ai` 빈 디렉토리 제거. 미구현 표·코드 리뷰 nit #7·기술 부채 목록(B-6 완료 제거, B-3 부분완료) 갱신. 코드 품질 전용·DB/화면 기능 변경 0.
 - **2026-06-06** — 문서 최적화: 누적 세션 히스토리 3문서(PROJECT_STATUS / SCREEN_STATUS / NEXT_SESSION) 압축. 현재 상태·DB SoT·보안 fix 이력·Post-MVP 로드맵은 보존, 과거 세션별 상세는 git 히스토리로 위임.
-- **직전 코드 변경**: PR #25(problems 구조화 컬럼 분리 + ProblemPanel 섹션 카드) / PR #26(글로벌 네비 메뉴바 + 홈 카드 정리) — 상세는 위 "한 줄 진단" + `docs/NEXT_SESSION.md`.
+- **직전 코드 변경**: PR #29(소소 이슈 정리) / PR #25(problems 구조화) / PR #26(글로벌 네비) — 상세는 위 "한 줄 진단" + `docs/NEXT_SESSION.md`.
 - 세션별 작업 이력 SoT는 `docs/NEXT_SESSION.md`(현재 상태 + Post-MVP 로드맵 + 기술 부채 B-1~8).
