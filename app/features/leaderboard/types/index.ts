@@ -4,9 +4,10 @@
  */
 
 /**
- * 리더보드 순위 한 줄. profiles 테이블에서 select하는 컬럼과 1:1 매칭.
+ * 리더보드 순위 한 줄. get_leaderboard RPC가 반환하는 컬럼과 1:1 매칭.
  * tier는 컬럼이 아니라 mmr에서 getTierByMmr로 파생하므로 포함하지 않는다.
  * (DB profiles.tier 컬럼은 nullable + 동기화 미보장이라 미신뢰)
+ * wins/losses/draws/total_finished는 RPC가 finished 매치를 집계한 값으로 항상 숫자(NULL 아님).
  */
 export interface ILeaderboardEntry {
   id: string;
@@ -14,6 +15,10 @@ export interface ILeaderboardEntry {
   avatar_url: string | null;
   mmr: number | null;
   created_at: string | null;
+  wins: number;
+  losses: number;
+  draws: number;
+  total_finished: number;
 }
 
 /**

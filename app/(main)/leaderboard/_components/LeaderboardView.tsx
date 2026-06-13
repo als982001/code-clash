@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import type { ILeaderboardEntry } from "@/app/features/leaderboard/types";
+import { getWinRate } from "@/app/features/leaderboard/utils/getWinRate";
 import { rankEntries } from "@/app/features/leaderboard/utils/rankEntries";
 import { getTierByMmr } from "@/app/features/match/utils/getTierByMmr";
 import { getTierEmoji } from "@/app/features/match/utils/getTierEmoji";
@@ -73,6 +74,18 @@ export function LeaderboardView({ entries, currentUserId }: IProps) {
             const { emoji } = getTierEmoji({ tier });
             const { initial } = getAvatarInitial({ nickname: entry.nickname });
 
+            const { winRate } = getWinRate({
+              wins: entry.wins,
+              totalFinished: entry.total_finished,
+            });
+
+            const recordLabel =
+              entry.total_finished === 0
+                ? "전적 없음"
+                : `${entry.wins}승 ${entry.losses}패${
+                    entry.draws > 0 ? ` ${entry.draws}무` : ""
+                  } · ${winRate}%`;
+
             return (
               <li key={entry.id}>
                 <Link
@@ -95,15 +108,20 @@ export function LeaderboardView({ entries, currentUserId }: IProps) {
                     <AvatarFallback>{initial}</AvatarFallback>
                   </Avatar>
 
-                  <span className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="truncate text-sm font-medium">
-                      {entry.nickname ?? "익명"}
-                    </span>
-                    {isMe ? (
-                      <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
-                        나
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">
+                        {entry.nickname ?? "익명"}
                       </span>
-                    ) : null}
+                      {isMe ? (
+                        <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
+                          나
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {recordLabel}
+                    </span>
                   </span>
 
                   <span className="inline-flex w-fit shrink-0 items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-semibold">
