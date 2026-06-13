@@ -5,6 +5,22 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { IMatchHistoryEntry } from "@/app/features/profile/types";
 
 /**
+ * `get_match_history` RPC 가 돌려주는 raw row (snake_case). PostgREST 가 RETURNS TABLE 을
+ * 배열로 반환하므로 이 타입으로 좁혀 컬럼명 오타를 컴파일 타임에 잡는다.
+ */
+interface IMatchHistoryRow {
+  match_id: string;
+  result: string;
+  problem_title: string | null;
+  opponent_id: string | null;
+  opponent_nickname: string | null;
+  opponent_avatar_url: string | null;
+  my_mmr_change: number | null;
+  end_time: string | null;
+  created_at: string | null;
+}
+
+/**
  * Post-MVP A-5: 대전 히스토리 fetch 래퍼.
  *
  * 왜 RPC인가?
@@ -40,7 +56,7 @@ export async function getMatchHistory({
     return { history: [] };
   }
 
-  const rows = Array.isArray(data) ? data : [];
+  const rows: IMatchHistoryRow[] = Array.isArray(data) ? data : [];
 
   const history = rows.map((row) => {
     return {

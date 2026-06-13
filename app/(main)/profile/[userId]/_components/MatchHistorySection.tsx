@@ -91,7 +91,8 @@ function MatchHistoryRow({ entry }: IRowProps) {
   });
 
   const showMmr = entry.myMmrChange !== null;
-  const mmrPositive = (entry.myMmrChange ?? 0) >= 0;
+  // 양수만 + 부호 + primary 색. 0/음수는 muted (0 일 때 "+0" 오표기 방지).
+  const mmrPositive = (entry.myMmrChange ?? 0) > 0;
 
   return (
     <li>
