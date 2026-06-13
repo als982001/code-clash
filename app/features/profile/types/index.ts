@@ -64,3 +64,18 @@ export interface INicknameValidation {
   ok: boolean;
   error?: string;
 }
+
+/**
+ * `get_match_history(uuid, integer)` RPC 결과 한 행 (camelCase 매핑).
+ * p_user_id 관점의 finished 매치 한 건.
+ */
+export interface IMatchHistoryEntry {
+  matchId: string;
+  result: "win" | "loss" | "draw";
+  problemTitle: string | null;
+  opponentId: string | null;
+  opponentNickname: string | null;
+  opponentAvatarUrl: string | null;
+  myMmrChange: number | null;
+  endTime: string | null;
+}

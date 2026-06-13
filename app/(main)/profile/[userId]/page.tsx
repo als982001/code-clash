@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import type { IProfile } from "@/app/features/profile/types";
+import { getMatchHistory } from "@/app/features/profile/utils/getMatchHistory";
 import { getProfileStats } from "@/app/features/profile/utils/getProfileStats";
 import { createClient } from "@/app/shared/lib/supabase/server";
 
@@ -40,13 +41,14 @@ export default async function ProfilePage({
 
   const isMe = user.id === userId;
 
-  const [profileRes, statsRes] = await Promise.all([
+  const [profileRes, statsRes, historyRes] = await Promise.all([
     client
       .from("profiles")
       .select("id, nickname, avatar_url, bio, created_at, mmr")
       .eq("id", userId)
       .maybeSingle(),
     getProfileStats({ userId, client }),
+    getMatchHistory({ userId, client, limit: 20 }),
   ]);
 
   if (profileRes.error) {
@@ -61,5 +63,12 @@ export default async function ProfilePage({
   // PostgREST 결과 row → IProfile로 좁힌다. 셀렉트 컬럼과 1:1 매칭이므로 안전.
   const profile = profileRes.data as IProfile;
 
-  return <ProfileView profile={profile} stats={statsRes.stats} isMe={isMe} />;
+  return (
+    <ProfileView
+      profile={profile}
+      stats={statsRes.stats}
+      history={historyRes.history}
+      isMe={isMe}
+    />
+  );
 }
