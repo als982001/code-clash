@@ -11,7 +11,7 @@
 
 **보안 (write primitive 3종 차단 완료)**: score/winner/mmr 컬럼 모두 — 인가 사용자 UPDATE default deny + service-role 단독 갱신 + BEFORE UPDATE 보호 컬럼 트리거(안전망)로 PostgREST PATCH 위조 차단. invite/matchmaking RPC는 SECURITY DEFINER + 적절한 EXECUTE 권한 분리(matchmaking은 service_role 단독, anon/authenticated REVOKE). 상세는 아래 "구현 완료 영역" + "DB 상태".
 
-**다음**: Post-MVP 최우선이던 리더보드 전적 표시(`get_leaderboard` 집계 RPC) **완료(2026-06-13)**. 다음 후보 = A-3 역량 분석(데이터 축적 후)·A-4 AI 봇·기술 부채 B-1~8 — `docs/NEXT_SESSION.md`를 SoT로 관리. (A-2 실매치 런타임 수동 검증 1회 권장 — 코드/DB는 머지 완료, 런타임 미검증.)
+**다음**: 리더보드 전적 표시(`get_leaderboard` 집계 RPC) **완료(2026-06-13, PR #30)**. **다음 최우선 = 대전 히스토리(A-5)** — BLUEPRINT §3.6 풀이 히스토리, `/profile/[userId]`에 개별 매치 리스트(vs 상대/승패/문제/날짜). 데이터 기존재(matches/match_participants)·한계비용 낮음·표본 작아도 즉시 가치라 A-3 앞에 배치. `get_match_history` SECURITY DEFINER RPC(`get_leaderboard`와 동형) + 화면. 이후 A-3 역량 분석(데이터 축적 후)·A-4 AI 봇·기술 부채 B-1~8 — `docs/NEXT_SESSION.md`를 SoT로 관리. (A-2 실매치 런타임 수동 검증 1회 권장 — 코드/DB는 머지 완료, 런타임 미검증.)
 
 ---
 
