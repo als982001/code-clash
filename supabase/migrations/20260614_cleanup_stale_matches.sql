@@ -25,6 +25,9 @@ WITH deleted AS (
   DELETE FROM public.matches
   WHERE status IN ('ongoing', 'waiting')
     AND created_at < now() - interval '1 day'
+    -- 제출 달린 매치는 제외(submissions FK NO ACTION 에러 차단). 주기 함수 ②③와 동일 가드.
+    -- 재실행/새 환경 db push 시 그 시점에 제출 달린 stale 매치가 있어도 마이그레이션 실패 안 함.
+    AND NOT EXISTS (SELECT 1 FROM public.submissions s WHERE s.match_id = matches.id)
   RETURNING id, status
 )
 SELECT status, count(*) AS deleted_count
