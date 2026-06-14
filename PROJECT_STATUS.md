@@ -11,7 +11,7 @@
 
 **보안 (write primitive 3종 차단 완료)**: score/winner/mmr 컬럼 모두 — 인가 사용자 UPDATE default deny + service-role 단독 갱신 + BEFORE UPDATE 보호 컬럼 트리거(안전망)로 PostgREST PATCH 위조 차단. invite/matchmaking RPC는 SECURITY DEFINER + 적절한 EXECUTE 권한 분리(matchmaking은 service_role 단독, anon/authenticated REVOKE). 상세는 아래 "구현 완료 영역" + "DB 상태".
 
-**다음**: 리더보드 전적 표시(`get_leaderboard` 집계 RPC) **완료(2026-06-13, PR #30)**. **대전 히스토리(A-5) 완료(2026-06-13, PR #31)** — `/profile/[userId]`에 개별 매치 리스트(상대/승패/무·문제/날짜/MMR변동) + `get_match_history` SECURITY DEFINER RPC(authenticated 단독, 상대 조인 LATERAL LIMIT 1). 데이터는 기존 matches/match_participants에 존재 — 새 테이블/컬럼 없음. **다음 최우선 = A-3 프로필 역량 분석**(매치 데이터 충분 축적 후 착수). 이후 A-3 역량 분석(데이터 축적 후)·A-4 AI 봇·기술 부채 B-1~8 — `docs/NEXT_SESSION.md`를 SoT로 관리. (A-2 실매치 런타임 수동 검증 1회 권장 — 코드/DB는 머지 완료, 런타임 미검증.)
+**다음**: 리더보드 전적 표시(`get_leaderboard` 집계 RPC) **완료(2026-06-13, PR #30)**. **대전 히스토리(A-5) 완료(2026-06-13, PR #31)** — `/profile/[userId]`에 개별 매치 리스트(상대/승패/무·문제/날짜/MMR변동) + `get_match_history` SECURITY DEFINER RPC(authenticated 단독, 상대 조인 LATERAL LIMIT 1). 데이터는 기존 matches/match_participants에 존재 — 새 테이블/컬럼 없음. **다음 최우선 = A-3 프로필 역량 분석**(매치 데이터 충분 축적 후 착수). 이후 A-3 역량 분석(데이터 축적 후)·A-4 AI 봇·기술 부채 B-1~8 — `docs/NEXT_SESSION.md`를 SoT로 관리. (A-2 자동매칭 런타임 동작 확인됨 — 2026-06-14 DB 재측정에서 자동매칭 finished 3건 = 루프 완주, matchmaking_queue 0건. 추가 실매치 검증 불필요.)
 
 ---
 
@@ -213,16 +213,16 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 
 ### 테이블 (8개, 모두 RLS enabled)
 
-| 테이블               | rows | 정책 수 | 주요 FK                                                                                                                                                               |
-| -------------------- | ---- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `profiles`           | 5    | 3       | `id → auth.users.id`. self_update 유지 + Step 4.5 `prevent_protected_profiles_update` 트리거로 평점 컬럼 보호                                                         |
-| `problems`           | 9    | 1       | — (2026-06-06 컬럼 구조화: `description`=문제설명 본문만 / `input_format`·`output_format` TEXT NOT NULL / `examples` JSONB NOT NULL `[{input,output,explanation?}]`)  |
-| `test_cases`         | 43   | 1       | `problem_id → problems.id` (`is_hidden` NOT NULL + (problem_id, input, is_hidden) UNIQUE, PR #9)                                                                      |
-| `matches`            | 18   | 3       | `winner_id`, `host_id → profiles.id`, `problem_id → problems.id` (status: waiting 6 / ongoing 9 / finished 3)                                                         |
-| `match_participants` | 30   | 3       | `match_id → matches.id`, `user_id → profiles.id` (PR #16 후속 커밋에서 self_update DROP — score write primitive fix)                                                  |
-| `submissions`        | 6    | 2       | `match_id → matches.id`, `user_id → profiles.id`                                                                                                                      |
-| `ai_reviews`         | 2    | 1       | `submission_id → submissions.id` UNIQUE (self_read SELECT만 — write 정책 부재, INSERT는 service-role 단독, PR #20)                                                    |
-| `matchmaking_queue`  | 0    | 2       | `user_id → profiles.id` UNIQUE, `match_id → matches.id`. self_read/self_delete만 — **INSERT/UPDATE default deny**, status/match_id 는 service-role RPC 단독 (MVP A-2) |
+| 테이블               | rows | 정책 수 | 주요 FK                                                                                                                                                                                                                                                   |
+| -------------------- | ---- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `profiles`           | 5    | 3       | `id → auth.users.id`. self_update 유지 + Step 4.5 `prevent_protected_profiles_update` 트리거로 평점 컬럼 보호                                                                                                                                             |
+| `problems`           | 9    | 1       | — (2026-06-06 컬럼 구조화: `description`=문제설명 본문만 / `input_format`·`output_format` TEXT NOT NULL / `examples` JSONB NOT NULL `[{input,output,explanation?}]`)                                                                                      |
+| `test_cases`         | 43   | 1       | `problem_id → problems.id` (`is_hidden` NOT NULL + (problem_id, input, is_hidden) UNIQUE, PR #9)                                                                                                                                                          |
+| `matches`            | 33   | 3       | `winner_id`, `host_id → profiles.id`, `problem_id → problems.id` (status: waiting 9 / ongoing 13 / finished 11 — 2026-06-14 실측. stale ongoing/waiting 22건은 7~40일 경과 테스트 잔재, B-5/B-7 정리 대상. 자동매칭 host_id NULL: finished 3 / ongoing 2) |
+| `match_participants` | 57   | 3       | `match_id → matches.id`, `user_id → profiles.id` (PR #16 후속 커밋에서 self_update DROP — score write primitive fix. 2026-06-14 실측: score 37/57 NULL — finished에도 2건, 전적은 winner_id 기반이라 무관, 결과 화면 점수 비교만 영향 B부채)              |
+| `submissions`        | 22   | 2       | `match_id → matches.id`, `user_id → profiles.id` (2026-06-14 실측)                                                                                                                                                                                        |
+| `ai_reviews`         | 12   | 1       | `submission_id → submissions.id` UNIQUE (self_read SELECT만 — write 정책 부재, INSERT는 service-role 단독, PR #20. 2026-06-14 실측)                                                                                                                       |
+| `matchmaking_queue`  | 0    | 2       | `user_id → profiles.id` UNIQUE, `match_id → matches.id`. self_read/self_delete만 — **INSERT/UPDATE default deny**, status/match_id 는 service-role RPC 단독 (MVP A-2)                                                                                     |
 
 ### RLS 정책 (14개)
 
@@ -326,6 +326,7 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
+- **2026-06-14** — **A-2 런타임 검증 + DB 재측정 (코드 변경 0, 문서 보정만)**. Supabase MCP 실측: ① A-2 자동매칭 런타임 동작 확인(`host_id NULL` 매치 finished 3 + ongoing 2, finished 3건이 전체 루프 완주, finished winner_id NULL 0건, `matchmaking_queue` 0건) → "런타임 미검증" 가정 보정. ② A-3 착수 조건 여전히 미충족(의미있는 표본 유저 단 2명, 태그당 평균 1.8문제) → 보류 권장. ③ 기술 부채 실증(stale ongoing 13 + waiting 9 = 22건 테스트 잔재 B-5/B-7, score 37/57 NULL). auth.users 5 = profiles 5 정합성 OK. DB 상태 표 카운트 갱신(matches 18→33, match_participants 30→57, submissions 6→22, ai_reviews 2→12).
 - **2026-06-13** — **대전 히스토리(Post-MVP A-5)**. `/profile/[userId]` 누적 전적 아래에 `MatchHistorySection`(개별 매치 리스트 — 승/패/무 배지 + 상대 + 문제 + 날짜 + MMR변동, 행 클릭→`/result/[matchId]`, 익명 상대 "익명 상대" 라벨, 최근 20건) 추가. `get_match_history` SECURITY DEFINER RPC(authenticated 단독·anon REVOKE `aclexplode` 검증, 상대 조인 LATERAL LIMIT 1) + `getMatchHistory` fetch 래퍼(빈 배열 fallback) + `IMatchHistoryEntry` 타입 + `isAnonymousNickname` 유틸. 데이터는 기존 matches/match_participants에 존재 — **새 테이블/컬럼 없이 집계 RPC만 신설**. agent-team-workflow(opus, Critical 0, W-1 LATERAL 방어 반영). DB 적용·권한·로직 검증 완료. 함수 목록·마이그레이션 이력 갱신. 리뷰 nitpick 2건(MMR 0 "+0" 오표기 방지 · `getMatchHistory` row 타입 명시) 반영. **PR #31 dev squash 머지 완료(`cfc1405`)**.
 - **2026-06-13** — **리더보드 전적 표시(Post-MVP A-1 후속)**. `get_leaderboard(p_limit)` SECURITY DEFINER RPC 신설(전체 유저 mmr+전적 집계, authenticated 단독·anon REVOKE `aclexplode` 검증 완료) + `getLeaderboard` 직접 select→RPC 전환 + `ILeaderboardEntry` 전적 4필드 확장 + `getWinRate` 유틸 + `LeaderboardView` 전적 서브텍스트(`7승 4패 · 64%`). 승률 = wins/total_finished(무승부 포함 분모), 0전이면 "전적 없음". agent-team-workflow(opus, Critical 0). 함수 목록·마이그레이션 이력 갱신. **DB 적용 완료(사용자 직접)·미커밋**.
 - **2026-06-07** — PR #29(Post-MVP 전 소소 이슈 묶음) dev 머지 반영: A2 status 상수화(`MATCH_STATUS`/`TMatchStatus`) / B-6 §C Realtime 개선 완료 / 로그인 디자인 토큰 통일 / `app/api/ai` 빈 디렉토리 제거. 미구현 표·코드 리뷰 nit #7·기술 부채 목록(B-6 완료 제거, B-3 부분완료) 갱신. 코드 품질 전용·DB/화면 기능 변경 0.
