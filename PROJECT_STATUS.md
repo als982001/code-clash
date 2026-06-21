@@ -13,6 +13,8 @@
 
 **다음**: 리더보드 전적 표시(`get_leaderboard` 집계 RPC) **완료(2026-06-13, PR #30)**. **대전 히스토리(A-5) 완료(2026-06-13, PR #31)** — `/profile/[userId]`에 개별 매치 리스트(상대/승패/무·문제/날짜/MMR변동) + `get_match_history` SECURITY DEFINER RPC(authenticated 단독, 상대 조인 LATERAL LIMIT 1). 데이터는 기존 matches/match_participants에 존재 — 새 테이블/컬럼 없음. **좀비 자동 정리(B-5/B-7) 완료(2026-06-14, PR #32)** — `cleanup_stale_matches_and_queue()` + pg_cron 15분 주기로 stale 매치·큐 좀비 자동 정리. **다음 최우선 = A-3 프로필 역량 분석**(매치 데이터 충분 축적 후 착수 — 2026-06-14 재측정 여전히 미충족: 의미있는 표본 유저 2명/태그당 1.8문제). 이후 A-4 AI 봇·기술 부채 B-1·B-2·B-3·B-4·B-8·B-9 — `docs/NEXT_SESSION.md`를 SoT로 관리. (A-2 자동매칭 런타임 동작 확인됨 — 2026-06-14 DB 재측정에서 자동매칭 finished 3건 = 루프 완주, matchmaking_queue 0건. 추가 실매치 검증 불필요.)
 
+**🚀 프로덕션 배포 (2026-06-21)**: Vercel 배포 완료 — 운영 URL **https://code-clash-mocha.vercel.app** (main 자동 배포). 배포 준비 중 `useSearchParams` Suspense 빌드 함정 수정(PR #35→#36). 프로덕션 스모크 테스트 전 흐름 통과. 남은 빌드 경고는 B-10/B-11로 분리. 상세는 아래 "마지막 갱신".
+
 ---
 
 ## 기술 스택
@@ -206,6 +208,8 @@ middleware.ts                     ✅  세션 쿠키 갱신 + 보호 prefix(/pla
 ### ℹ️ 11. 후속 정리 후보
 
 - `match_participants.self_insert`/`self_delete` `TO public` → `TO authenticated` 일관화 / `submissions` UPDATE 정책 명시화 (B-1)
+- **B-10 `middleware` → `proxy` 파일명** (Next.js 16 deprecation) — `next build` 경고(`The "middleware" file convention is deprecated`). 현재 동작 무해, deprecation 대응만. 파일명/관례 변경 필요.
+- **B-11 lockfile 2개 / `turbopack.root` 미설정** — `next build` 워크스페이스 루트 오인 경고. 상위 `personalProjects/package-lock.json`(레포 밖, **로컬 전용 → Vercel 무해**) + 프로젝트 lockfile 동시 감지. `next.config.ts`에 `turbopack.root` 명시 또는 상위 lockfile 정리로 경고 제거.
 
 ---
 
@@ -330,6 +334,7 @@ ai_reviews          → self_read (SELECT, TO authenticated, submission_id IN (S
 
 ## 마지막 갱신
 
+- **2026-06-21** — **🚀 프로덕션 배포 (Vercel)**. 운영 URL **https://code-clash-mocha.vercel.app** (main 자동 배포). PR #33(dev→main v1.1.0) 머지 후 배포 준비 중 `next build` 실패 발견 → `/login` 페이지 최상위 `useSearchParams()` 정적 프리렌더 CSR bailout(컴파일·타입체크는 통과, 프리렌더만 실패) → `<Suspense>` 경계 추가로 수정(`LoginContent` 분리 + `LoginSpinner` 추출, **PR #35** dev 머지 → **PR #36** dev→main 승격). Vercel 환경변수 6종(`NEXT_PUBLIC_SUPABASE_URL`/`_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `JUDGE0_API_URL`/`_KEY`) + `NEXT_PUBLIC_SITE_URL`(=운영 URL, **끝 슬래시 없이** — invite route 이중 슬래시 방지, 추가 후 Redeploy). Supabase Auth URL Configuration: Site URL=운영 URL + Redirect URLs에 운영 `/auth/callback` 추가(localhost 유지). **스모크 테스트 전 흐름 통과**(로그인→매칭→채점→결과/AI리뷰→리더보드/프로필). 남은 빌드 경고는 B-10(middleware→proxy)·B-11(lockfile/turbopack.root)로 분리 기록(배포 차단 아님).
 - **2026-06-14** — **좀비 자동 정리 (Post-MVP B-5/B-7)**. `cleanup_stale_matches_and_queue()` SECURITY DEFINER 함수(4 카테고리: stale ongoing 제출有→finished 몰수/제출無→DELETE, 만료 waiting→DELETE, queue 15min→DELETE, 모든 DELETE에 `NOT EXISTS(submissions)` 가드) + pg_cron 15분 주기 등록. brainstorming→spec→plan 사이클(spec/plan은 `docs/superpowers/`). code-reviewer(opus) 리뷰 Critical 1건(트랜잭션 경계) 반영 → 함수 파일(`20260614_zombie_cleanup_function.sql`, BEGIN/COMMIT)과 스케줄 파일(`20260614_zombie_cleanup_schedule.sql`, 비트랜잭션 CREATE EXTENSION+cron) **2개로 분리**. 권한 anon/authenticated 명시 REVOKE, service_role 단독. 선행 1회 정리(`20260614_cleanup_stale_matches.sql`)는 사용자 적용 완료(stale 22→0). **함수/스케줄 마이그레이션 DB 적용·검증 완료(사용자 직접) — `aclexplode` postgres/service_role만(anon/authenticated 부재), pg_cron job `cleanup-stale-matches` `*/15 * * * *` active=true 확인**. **PR #32 dev squash 머지 완료(`850bfa3`)** — 외부 리뷰 INFORMATIONAL #1(1회 정리 가드 비대칭) 반영(`f7f720d`), #4(winner_id forward-looking)는 B-9 부채 분리.
 - **2026-06-14** — **A-2 런타임 검증 + DB 재측정 (코드 변경 0, 문서 보정만)**. Supabase MCP 실측: ① A-2 자동매칭 런타임 동작 확인(`host_id NULL` 매치 finished 3 + ongoing 2, finished 3건이 전체 루프 완주, finished winner_id NULL 0건, `matchmaking_queue` 0건) → "런타임 미검증" 가정 보정. ② A-3 착수 조건 여전히 미충족(의미있는 표본 유저 단 2명, 태그당 평균 1.8문제) → 보류 권장. ③ 기술 부채 실증(stale ongoing 13 + waiting 9 = 22건 테스트 잔재 B-5/B-7, score 37/57 NULL). auth.users 5 = profiles 5 정합성 OK. DB 상태 표 카운트 갱신(matches 18→33, match_participants 30→57, submissions 6→22, ai_reviews 2→12).
 - **2026-06-13** — **대전 히스토리(Post-MVP A-5)**. `/profile/[userId]` 누적 전적 아래에 `MatchHistorySection`(개별 매치 리스트 — 승/패/무 배지 + 상대 + 문제 + 날짜 + MMR변동, 행 클릭→`/result/[matchId]`, 익명 상대 "익명 상대" 라벨, 최근 20건) 추가. `get_match_history` SECURITY DEFINER RPC(authenticated 단독·anon REVOKE `aclexplode` 검증, 상대 조인 LATERAL LIMIT 1) + `getMatchHistory` fetch 래퍼(빈 배열 fallback) + `IMatchHistoryEntry` 타입 + `isAnonymousNickname` 유틸. 데이터는 기존 matches/match_participants에 존재 — **새 테이블/컬럼 없이 집계 RPC만 신설**. agent-team-workflow(opus, Critical 0, W-1 LATERAL 방어 반영). DB 적용·권한·로직 검증 완료. 함수 목록·마이그레이션 이력 갱신. 리뷰 nitpick 2건(MMR 0 "+0" 오표기 방지 · `getMatchHistory` row 타입 명시) 반영. **PR #31 dev squash 머지 완료(`cfc1405`)**.
