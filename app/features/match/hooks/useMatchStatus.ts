@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createClient } from "@/app/shared/lib/supabase/client";
+import type { TMatchStatus } from "@/app/features/match/types";
 
 interface IUseMatchStatusReturn {
-  status: "waiting" | "ongoing" | "finished" | null;
+  status: TMatchStatus | null;
   hostId: string | null;
   inviteToken: string | null;
   inviteExpiresAt: string | null;
@@ -36,9 +37,7 @@ export function useMatchStatus({
 }: {
   matchId: string;
 }): IUseMatchStatusReturn {
-  const [status, setStatus] = useState<
-    "waiting" | "ongoing" | "finished" | null
-  >(null);
+  const [status, setStatus] = useState<TMatchStatus | null>(null);
   const [hostId, setHostId] = useState<string | null>(null);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [inviteExpiresAt, setInviteExpiresAt] = useState<string | null>(null);
@@ -48,9 +47,19 @@ export function useMatchStatus({
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  // Effect 3(폴링)에서 Realtime 연결 여부를 deps 재실행 없이 참조하기 위한 ref.
+  // isRealtimeConnected를 Effect 3 deps에 넣으면 연결 토글마다 인터벌이 재설정되므로
+  // ref로 최신 값만 읽어 polling skip 가드에 사용한다.
+  const isRealtimeConnectedRef = useRef(false);
+
   const { client } = useMemo(() => {
     return createClient();
   }, []);
+
+  // isRealtimeConnected state → ref 동기화 (setState 없이 대입만).
+  useEffect(() => {
+    isRealtimeConnectedRef.current = isRealtimeConnected;
+  }, [isRealtimeConnected]);
 
   // ── Effect 1: 초기 fetch ─────────────────────────────────────────
   // 마운트 시 1회 select. Realtime 구독 전에 현재 상태를 즉시 화면에 띄우기 위함.
@@ -78,7 +87,7 @@ export function useMatchStatus({
           return;
         }
 
-        setStatus(data.status as "waiting" | "ongoing" | "finished");
+        setStatus(data.status as TMatchStatus);
         setHostId(data.host_id ?? null);
         setInviteToken(data.invite_token ?? null);
         setInviteExpiresAt(data.invite_expires_at ?? null);
@@ -128,7 +137,7 @@ export function useMatchStatus({
           // TODO: mcp__supabase__generate_typescript_types로 DB 타입 생성 후 교체
           const r = row as Record<string, unknown>;
 
-          setStatus(r.status as "waiting" | "ongoing" | "finished");
+          setStatus(r.status as TMatchStatus);
           setHostId((r.host_id as string) ?? null);
           setInviteToken((r.invite_token as string) ?? null);
           setInviteExpiresAt((r.invite_expires_at as string) ?? null);
@@ -158,6 +167,8 @@ export function useMatchStatus({
     let isMounted = true;
 
     const poll = async () => {
+      if (isRealtimeConnectedRef.current) return;
+
       try {
         const { data, error: pollError } = await client
           .from("matches")
@@ -169,7 +180,7 @@ export function useMatchStatus({
 
         if (pollError || !data) return;
 
-        setStatus(data.status as "waiting" | "ongoing" | "finished");
+        setStatus(data.status as TMatchStatus);
         setHostId(data.host_id ?? null);
         setInviteToken(data.invite_token ?? null);
         setInviteExpiresAt(data.invite_expires_at ?? null);

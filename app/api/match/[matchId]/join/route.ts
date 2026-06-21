@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // requireUser: 쿠키 세션을 서버에서 검증해 user를 보장하는 헬퍼.
+import { MATCH_STATUS } from "@/app/features/match/types";
 import { requireUser } from "@/app/shared/lib/auth/requireUser";
 // service client: service_role 키 RLS 우회 싱글턴 (fail-fast).
 // matches RLS가 host/participant 한정으로 좁혀진 후 토큰 검증/정원 체크/INSERT/UPDATE를
@@ -63,7 +64,7 @@ export async function POST(
     );
   }
 
-  if (match.status !== "waiting") {
+  if (match.status !== MATCH_STATUS.WAITING) {
     return NextResponse.json(
       { error: "이미 시작되었거나 종료된 대전입니다." },
       { status: 400 },
@@ -161,7 +162,7 @@ export async function POST(
     const { data: updatedMatch, error: updateError } = await client
       .from("matches")
       .update({
-        status: "ongoing",
+        status: MATCH_STATUS.ONGOING,
         problem_id: problemId,
         start_time: new Date().toISOString(),
       })

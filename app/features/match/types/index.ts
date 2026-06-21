@@ -1,6 +1,16 @@
+export const MATCH_STATUS = {
+  WAITING: "waiting",
+  ONGOING: "ongoing",
+  FINISHED: "finished",
+} as const;
+
+export type TMatchStatus = (typeof MATCH_STATUS)[keyof typeof MATCH_STATUS];
+
+export type TFinishedStatus = typeof MATCH_STATUS.FINISHED;
+
 export interface IMatch {
   id: string;
-  status: "waiting" | "ongoing" | "finished";
+  status: TMatchStatus;
   winner_id: string | null;
   problem_id: string | null;
   start_time: string | null;

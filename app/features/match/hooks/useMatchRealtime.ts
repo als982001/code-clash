@@ -92,6 +92,7 @@ export function useMatchRealtime({
     return () => {
       client.removeChannel(channel);
       channelRef.current = null;
+      setIsSubscribed(false);
     };
   }, [matchId]);
 

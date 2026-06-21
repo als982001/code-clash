@@ -17,6 +17,7 @@ import { useMatchRealtime } from "@/app/features/match/hooks/useMatchRealtime";
 import { useMatchSounds } from "@/app/features/match/hooks/useMatchSounds";
 import { useMatchStatus } from "@/app/features/match/hooks/useMatchStatus";
 import { useMatchTimer } from "@/app/features/match/hooks/useMatchTimer";
+import { MATCH_STATUS } from "@/app/features/match/types";
 import type {
   IPlayerReadyPayload,
   IProgressUpdatePayload,
@@ -166,7 +167,13 @@ export default function PlayPage({ params }: IPlayPageProps) {
 
   // status가 ongoing으로 전환되고 problemId가 확정된 시점에만 문제 fetch
   useEffect(() => {
-    if (matchStatus !== "ongoing" && matchStatus !== "finished") return;
+    if (
+      matchStatus !== MATCH_STATUS.ONGOING &&
+      matchStatus !== MATCH_STATUS.FINISHED
+    ) {
+      return;
+    }
+
     if (!problemId) return;
 
     let isMounted = true;
@@ -410,7 +417,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
     );
   }
 
-  if (matchStatus === "waiting" && userId === hostId) {
+  if (matchStatus === MATCH_STATUS.WAITING && userId === hostId) {
     return (
       <HostWaitingView
         inviteToken={inviteToken}
@@ -420,7 +427,7 @@ export default function PlayPage({ params }: IPlayPageProps) {
     );
   }
 
-  if (matchStatus === "waiting" && userId !== hostId) {
+  if (matchStatus === MATCH_STATUS.WAITING && userId !== hostId) {
     return <WaitingForGameStart />;
   }
 
