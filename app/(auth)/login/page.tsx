@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 
 import { Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -10,7 +10,16 @@ import OAuthButton from "@/app/(auth)/login/_components/OAuthButton";
 import { sanitizeNext } from "@/app/(auth)/login/_utils/sanitizeNext";
 import { useAuth } from "@/app/shared/hooks/useAuth";
 
-export default function LoginPage() {
+function LoginSpinner() {
+  return (
+    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+      <Loader2 className="size-6 animate-spin" aria-hidden="true" />
+      <span className="text-sm">로딩중...</span>
+    </div>
+  );
+}
+
+function LoginContent() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -37,12 +46,7 @@ export default function LoginPage() {
   }, [error, router, searchParams]);
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-        <Loader2 className="size-6 animate-spin" aria-hidden="true" />
-        <span className="text-sm">로딩중...</span>
-      </div>
-    );
+    return <LoginSpinner />;
   }
 
   return (
@@ -59,5 +63,13 @@ export default function LoginPage() {
         <OAuthButton provider="github" nextPath={next} />
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginSpinner />}>
+      <LoginContent />
+    </Suspense>
   );
 }
